@@ -12,6 +12,13 @@ The scene detector and the funscript pipeline are the same algorithms and thresh
 the reference YOLO project; the app only adds the window, folder selection, real
 progress (percent, ETA, elapsed) and the log.
 
+![main window](assets/screenshots/main-en.png)
+
+The settings page (Russian, the «Cartoons» scheme): language, color scheme, threads of
+each stage, device for YOLO, the model file, and the two run options.
+
+![settings](assets/screenshots/settings-ru.png)
+
 ## Requirements
 
 - Windows 10/11 x64. FFmpeg and FFprobe are bundled, nothing has to be installed.
@@ -72,6 +79,13 @@ Development run without packaging:
 
 ```powershell
 run.bat
+```
+
+The README screenshots are rendered by the app's own window code (offscreen, no run):
+
+```powershell
+.venv\Scripts\python.exe tools\make_screenshots.py
+.venv\Scripts\python.exe tools\make_icon.py       # assets\icon.ico
 ```
 
 ## Tests

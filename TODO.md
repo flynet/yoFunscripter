@@ -39,7 +39,8 @@ State of the project, in the order of what is left.
   `auto`/`cuda` is untested on the machine with the GPU.
 - **Look of the window.** The three color schemes and both languages have not been
   screenshot-checked in the running window; the icon has not been seen in the taskbar.
-- README screenshots of the three cards.
+  The English main window and the Russian settings page are rendered from the window code
+  into `assets/screenshots` (`tools/make_screenshots.py`), so the README shows the real UI.
 
 ## Small things to keep in mind
 

@@ -41,7 +41,8 @@ torchvision = { index = "torchcpu" }
 
 [dependency-groups]
 # Tests of the Qt-free parts: updater, settings, catalogues, progress, selection.
-dev = ["pytest>=8.0"]
+# pyinstaller belongs to the build of the installer (build.ps1), not to the program.
+dev = ["pytest>=8.0", "pyinstaller>=6.10"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
