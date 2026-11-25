@@ -178,9 +178,9 @@ State of the project, in the order of what is left.
   `cuda` in the settings are for the user).
 - **The release 1.0.5.** `https://github.com/flynet/yoFunscripter/releases/tag/v1.0.5`
   (release id `458342774`, notes `build\release-notes-1.0.5.md`) carries
-  `YoFunscripter-Setup-1.0.5.exe` (asset id `792213419`, 1710.8 MB, SHA-256
+  `YoFunscripter-Setup-1.0.5.exe` (asset id `792279488`, 1710.8 MB, SHA-256
   `ca0a22b34210c1f6fc5f3acf20304b266b1b64dcf86b8dfa9816162fa448653e`) and its `.sha256`
-  (asset id `792225696`). The tag `v1.0.5` is pushed first, `build.ps1 -Cuda` writes
+  (asset id `792291898`). The tag `v1.0.5` is pushed first, `build.ps1 -Cuda` writes
   `_version.py` from `git describe --tags` and compiles the installer. `Invoke-RestMethod`
   on the release POST answered 500 and 502, so the release was created by
   `curl.exe --data-binary @body.json` (201); `publish_release.ps1` itself was broken by
