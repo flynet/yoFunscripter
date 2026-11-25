@@ -64,7 +64,7 @@ $filled = $template.Replace("VERSION_TUPLE", $tuple).Replace("VERSION_STRING", $
 if ($Cuda) {
     Write-Host "CUDA build: installing the cu126 wheels of torch and torchvision"
     $ErrorActionPreference = "Continue"
-    uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+    uv pip install --reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu126
     $code = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
     if ($code -ne 0) { throw "torch CUDA install failed" }

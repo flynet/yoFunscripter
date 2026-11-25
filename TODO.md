@@ -93,13 +93,15 @@ State of the project, in the order of what is left.
     to test the chain without any token.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
-- **The CUDA build.** `build.ps1 -Cuda` has not been run, so every installer shipped so far
-  carries the CPU-only torch (`torch 2.15.0+cpu`, `cuda.is_available()` False). `cuda` in
-  the settings cannot work in such a build: ultralytics raised the big `Invalid CUDA
-  'device=0'` error on every clip of the user's 21-clip run. The device is now resolved once
-  at the start of stage 2 (`_device`), so the log says the truth in one line and the run
-  goes on the CPU. The GPU build with the cu126 wheels has to be built and measured on the
-  machine with the GPU.
+- **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv run
+  pyinstaller` syncs the project, so it put the CPU wheels back over the cu126 wheels that
+  the CUDA step had installed (the build carried `torch-2.15.0+cpu.dist-info`). `build.ps1`
+  now uses `uv run --no-sync` and stops the build when the venv does not have the cu126
+  wheels. The GPU build with the cu126 wheels has to be built and measured on the machine
+  with the GPU (`RTX 4060 Laptop, driver 621.24, 8 GB`). `cuda` in the settings cannot work
+  in a CPU build: ultralytics raised the big `Invalid CUDA 'device=0'` error on every clip
+  of the user's 21-clip run, so the device is resolved once at the start of stage 2
+  (`_device`) and the stage falls back to the CPU with one line in the log.
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
   installer, and the window icon is set from the bundle; it has not been seen in the
   taskbar of a running packaged app.
