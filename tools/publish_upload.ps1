@@ -4,12 +4,12 @@
 #   powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda
 #   powershell -ExecutionPolicy Bypass -File tools\publish_upload.ps1
 #
-The updater reads `releases/latest` and takes the asset `YoFunscripter-Setup-<version>.exe`,
-so exactly one setup file must be in the release: the CI workflow attaches its CPU build
-with the same name, and that asset is removed here after the upload. The token is taken
-from the git credential manager, the same one `git push` uses. A CUDA installer is about
-1.7 GB, so the upload is done by `curl.exe`, which streams the file: a PowerShell string
-of that size does not fit in memory.
+# The updater reads `releases/latest` and takes the asset `YoFunscripter-Setup-<version>.exe`,
+# so exactly one setup file must be in the release: the CI workflow attaches its CPU build
+# with the same name, and that asset is removed here after the upload. The token is taken
+# from the git credential manager, the same one `git push` uses. A CUDA installer is about
+# 1.7 GB, so the upload is done by `curl.exe`, which streams the file: a PowerShell string
+# of that size does not fit in memory.
 
 param(
     [long]$ReleaseId
@@ -24,6 +24,7 @@ if (-not $ReleaseId) { $ReleaseId = [long](Get-Content "build\release_id.txt" -R
 $uploaded = @()
 foreach ($file in Get-ChildItem "dist\install\YoFunscripter-Setup-*") {
     $out = Join-Path $env:TEMP ("asset-" + $file.Name + ".json")
+    if (Test-Path $out) { Remove-Item -Force $out }
     $url = "https://uploads.github.com/repos/flynet/yoFunscripter/releases/$ReleaseId" +
            "/assets?name=" + $file.Name
     # `--data-binary @file` streams the file; the response body is the asset, saved to a
@@ -31,8 +32,8 @@ foreach ($file in Get-ChildItem "dist\install\YoFunscripter-Setup-*") {
     & curl.exe -sS -X POST $url -H "Authorization: token $token" `
         -H "Content-Type: application/octet-stream" --data-binary "@$($file.FullName)" `
         -o $out -w "%{http_code}"
-    $body = [System.IO.File]::ReadAllText($out)
     if (-not (Test-Path $out)) { throw "curl wrote no response for $($file.Name)" }
+    $body = [System.IO.File]::ReadAllText($out)
     if ($body -notmatch '"id"') { throw "upload of $($file.Name) failed: $body" }
     $asset = $body | ConvertFrom-Json
     $uploaded += $asset
