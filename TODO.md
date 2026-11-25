@@ -26,18 +26,27 @@ State of the project, in the order of what is left.
   the settings page. Cyrillic and Latin both render; the screenshots in `assets/screenshots`
   are the real window (`tools/make_screenshots.py`).
 - **The packaged build**: `build.ps1` ran on this machine. PyInstaller onedir produced
-  `dist\yoFunscripter\` with `_internal` (torch, ultralytics, cv2, PySide6, scenedetect),
-  `bin\ffmpeg.exe` + `bin\ffprobe.exe` (copied from `D:\ffmpeg\bin`), `models\best.pt`,
-  `configs\`; the .exe file properties read `ProductVersion 1.0.0`, `CompanyName flynet`;
-  Inno Setup produced `dist\install\YoFunscripter-Setup-1.0.0.exe` with its `.sha256`.
+  `dist\yoFunscripter\` (908 MB unpacked) with `_internal` (torch 2.15.0+cpu 373 MB with
+  `torch_cpu.dll`, torchvision, ultralytics 8.4.218 with `engine/nn/trackers/cfg/data`,
+  cv2, scenedetect 0.7.3, PySide6), `bin\ffmpeg.exe` + `bin\ffprobe.exe` (copied from
+  `D:\ffmpeg\bin`), `models\best.pt`, `configs\`, `assets\icon.ico`; the .exe file
+  properties read `ProductVersion 1.0.0`, `CompanyName flynet`; Inno Setup produced
+  `dist\install\YoFunscripter-Setup-1.0.0.exe` (228 MB) with its `.sha256`, in the exact
+  case of the updater contract.
+- The packaged window starts: `dist\yoFunscripter\yoFunscripter.exe` runs 40 s in the
+  offscreen platform, 92 MB of memory, `settings.json` is written to
+  `%APPDATA%\YoFunscripter` — Qt, cv2, scenedetect and the settings path load in the
+  frozen build.
 
 ## Left
 
-- **The packaged app against the real work.** The packaged window has to be started and
-  one small run done inside the packaged app: the hidden imports of ultralytics/torch/cv2
-  show up only when the stage code runs inside the frozen build (the unit tests run the
-  source tree). The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has not
-  been done.
+- **The packaged app against the real work.** `import torch` and
+  `from ultralytics import YOLO` happen inside the stage functions, so PyInstaller reports
+  nothing about them: a missing hidden import shows only when stage 2 runs in the frozen
+  build. A selftest program (import torch/cv2/scenedetect/ultralytics + load
+  `models/best.pt`) is built with the same `collect_all` list as the app spec and run as
+  the console build. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has
+  not been done.
 - **The updater against the repository.** `github.com/flynet/yoFunscripter` returns 404,
   so `fetch_release`, the download and the silent install are tested only by unit tests.
   The repository must be created and `v1.0.0` released before the button does anything.
