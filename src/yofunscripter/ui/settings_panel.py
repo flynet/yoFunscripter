@@ -31,6 +31,10 @@ class SettingsPanel(QWidget):
     save_requested = Signal()
     #: the window starts a new copy of the program (the language needs a start)
     restart_requested = Signal()
+    #: the window runs the check of the releases (the chain lives in `update`)
+    updates_requested = Signal()
+    #: the window opens the issues page of the repository in the browser
+    help_requested = Signal()
 
     def __init__(self, settings: Settings, default_model: Path,
                  parent: QWidget | None = None) -> None:
@@ -118,8 +122,8 @@ class SettingsPanel(QWidget):
         layout.addLayout(grid)
 
         # Save is the button that finishes the page, so it stands at the right of the
-        # row, in the corner where a person looks for it; Revert and Restart are the
-        # secondary commands on the left.
+        # row, in the corner where a person looks for it; Revert, Restart, the update
+        # check and Help are the commands of the page on the left of it.
         buttons = QHBoxLayout()
         self.revert_button = QPushButton(tr("settings_revert"))
         self.revert_button.setObjectName("browse")
@@ -129,12 +133,22 @@ class SettingsPanel(QWidget):
         self.restart_button.setObjectName("browse")
         self.restart_button.setToolTip(tr("settings_restart_tip"))
         self.restart_button.clicked.connect(self.restart_requested.emit)
+        self.updates_button = QPushButton(tr("check_updates"))
+        self.updates_button.setObjectName("browse")
+        self.updates_button.setToolTip(tr("check_updates_tip"))
+        self.updates_button.clicked.connect(self.updates_requested.emit)
+        self.help_button = QPushButton(tr("help"))
+        self.help_button.setObjectName("browse")
+        self.help_button.setToolTip(tr("help_tip"))
+        self.help_button.clicked.connect(self.help_requested.emit)
         self.save_button = QPushButton(tr("settings_save"))
         self.save_button.setToolTip(tr("settings_save_tip"))
         self.save_button.setDefault(True)
         self.save_button.clicked.connect(self.save_requested.emit)
         buttons.addWidget(self.revert_button)
         buttons.addWidget(self.restart_button)
+        buttons.addWidget(self.updates_button)
+        buttons.addWidget(self.help_button)
         buttons.addStretch(1)
         buttons.addWidget(self.save_button)
         layout.addLayout(buttons)

@@ -16,11 +16,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray
-from PySide6.QtWidgets import (QApplication, QLabel, QMainWindow, QMessageBox, QPushButton,
-                               QTabWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QByteArray, QUrl
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtWidgets import (QApplication, QLabel, QMainWindow, QMessageBox, QTabWidget,
+                               QVBoxLayout, QWidget)
 
-from yofunscripter.config.constants import VERSION
+from yofunscripter.config.constants import HELP_URL, VERSION
 from yofunscripter.config.paths import app_data_root, install_layout
 from yofunscripter.config.settings import Settings, save_settings
 from yofunscripter.i18n import current_language, tr
@@ -56,6 +57,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.main_tab = QWidget()
         main_layout = QVBoxLayout(self.main_tab)
+        self.main_layout = main_layout
         # the cards are blocks of their own: the window spends its height on the rows,
         # not on the gaps between them
         main_layout.setContentsMargins(6, 6, 6, 6)
@@ -74,12 +76,17 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.progress)
 
         self.console = ConsolePanel()
-        main_layout.addWidget(self.console, 1)
+        # the log is the row that gives way: an open log takes the free space of the
+        # window, a closed log is one row of buttons and the free space stays below it,
+        # so a closed log never leaves an empty box in the window
+        main_layout.addWidget(self.console)
+        main_layout.addStretch(1)
+        self._console_index = main_layout.indexOf(self.console)
+        self.console.toggle.clicked.connect(self._balance_console)
         # the rows of the cards keep the height their text asks for, so a short window
-        # shrinks the console, not the text of the folders: the console is the row that
-        # gives way, and its floor is the readable minimum, not the size hint
+        # shrinks the console, not the text of the folders: the console sets its own
+        # floor (one row when closed, the readable minimum of the log when open)
         set_row_floor(main_layout)
-        self.console.setMinimumHeight(CONSOLE_MIN_HEIGHT + 30)
         self.tabs.addTab(self.main_tab, tr("tab_main"))
 
         self.panel = SettingsPanel(settings, self.layout.model_path)
@@ -89,11 +96,11 @@ class MainWindow(QMainWindow):
 
         self.status = QLabel(tr("progress_idle"))
         self.statusBar().addWidget(self.status, 1)
-        self.update_button = QPushButton(tr("check_updates"))
-        self.update_button.setObjectName("browse")
-        self.update_button.setToolTip(tr("check_updates_tip"))
-        self.update_button.clicked.connect(self._check_updates)
-        self.statusBar().addPermanentWidget(self.update_button)
+        # «Check for updates» is a command of the settings page, not of the status line:
+        # it stands with Revert, Restart, Help and Save, where a person looks for the
+        # commands of the program
+        self.panel.updates_requested.connect(self._check_updates)
+        self.panel.help_requested.connect(self._open_help)
 
         self.scenes_card.start.clicked.connect(self._start_scenes)
         self.scripts_card.start.clicked.connect(self._start_scripts)
@@ -121,6 +128,17 @@ class MainWindow(QMainWindow):
         """One line to the console and to the status line."""
         self.console.append(line)
         self.status.setText(line)
+
+    def _balance_console(self) -> None:
+        """The free space of the window follows the log: an open log takes the stretch,
+        a closed log is one row of buttons and the space stays below it. The window
+        follows the block the way the block follows it — closing the log takes the
+        empty box away, opening it gives the log the room it asks for, so the window
+        is short exactly when there is nothing to read in it."""
+        visible = self.console.view.isVisible()
+        self.main_layout.setStretch(self._console_index, 1 if visible else 0)
+        height = self.height() + (CONSOLE_MIN_HEIGHT if visible else -CONSOLE_MIN_HEIGHT)
+        self.resize(self.width(), max(height, self.minimumHeight()))
 
     # ---------------------------------------------------------------- stages
 
@@ -278,6 +296,11 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     # ---------------------------------------------------------------- updates
+
+    def _open_help(self) -> None:
+        """The issues page of the repository in the browser: the place where a question
+        about a stage or an error is asked and answered."""
+        QDesktopServices.openUrl(QUrl(HELP_URL))
 
     def _check_updates(self) -> None:
         if self.update_thread is not None and self.update_thread.isRunning():

@@ -3,7 +3,8 @@
 A folder row is the label, the path the user picked, the «Browse…» button of the folder
 picker and «Open» of the file manager. An empty row means the default folder relative to
 the install dir, and the placeholder shows that default, so the user sees where the files
-go before he picks anything.
+go before he picks anything. The console panel is the log of the runs: it starts closed,
+one row of buttons tall, and opens on its own button.
 """
 
 from __future__ import annotations
@@ -69,7 +70,13 @@ def media_button(pixmap: QStyle.StandardPixmap, tip: str, name: str,
 
 
 class ConsolePanel(QWidget):
-    """The log of the window: one `append` per console line, the last lines stay visible."""
+    """The log of the window: one `append` per console line, the last lines stay visible.
+
+    The log starts hidden: the window of a person who runs a stage needs the folders and
+    the bar, not the text. «Open console» shows the log and turns itself into «Close
+    console», and «Clear» appears only while the log is on screen — there is nothing to
+    clear behind a hidden block.
+    """
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -81,9 +88,14 @@ class ConsolePanel(QWidget):
         console_label.setToolTip(tr("console_tip"))
         row.addWidget(console_label)
         row.addStretch(1)
+        self.toggle = QPushButton(tr("console_open"))
+        self.toggle.setObjectName("browse")
+        self.toggle.setToolTip(tr("console_open_tip"))
+        row.addWidget(self.toggle)
         self.clear_button = QPushButton(tr("clear"))
         self.clear_button.setObjectName("browse")
         self.clear_button.setToolTip(tr("clear_tip"))
+        self.clear_button.setVisible(False)     # nothing to clear behind a hidden log
         row.addWidget(self.clear_button)
         layout.addLayout(row)
         self.view = QPlainTextEdit()
@@ -93,19 +105,39 @@ class ConsolePanel(QWidget):
         self.view.setMaximumBlockCount(CONSOLE_MAX_LINES)
         self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
         self.view.setToolTip(tr("console_tip"))
+        self.view.setVisible(False)             # the block starts closed
         layout.addWidget(self.view)
         self.clear_button.clicked.connect(self.view.clear)
+        self.toggle.clicked.connect(self._toggle)
         set_row_floor(layout)
         # the log is the part of the window that gives way: its floor is the readable
-        # minimum, not the size hint, so a short window shrinks the console and never
+        # minimum, not the size hint, so an open log can shrink to 60 px and never
         # squeezes the rows of the cards
         self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
+        #: the row of the buttons: the whole block when the log is closed
+        self.header_height = row.sizeHint().height()
+        self._apply_floor(False)
+
+    def _apply_floor(self, visible: bool) -> None:
+        """The floor of the block: the row of its buttons when the log is closed, the
+        row plus the readable height of the log when it is open. A closed log is one
+        row, not an empty box, so the window keeps its height for the folders."""
+        self.setMinimumHeight(self.header_height + (CONSOLE_MIN_HEIGHT if visible else 0))
+
+    def _toggle(self) -> None:
+        """«Open console» and «Close console» are one button: it shows its own state."""
+        visible = not self.view.isVisible()
+        self.show_console(visible)
+        self.clear_button.setVisible(visible)
+        self.toggle.setText(tr("console_close" if visible else "console_open"))
+        self.toggle.setToolTip(tr("console_close_tip" if visible else "console_open_tip"))
 
     def append(self, line: str) -> None:
         self.view.appendPlainText(line)
 
     def show_console(self, visible: bool) -> None:
         self.view.setVisible(visible)
+        self._apply_floor(visible)
 
 
 class DirRow(QWidget):
@@ -148,11 +180,6 @@ class DirRow(QWidget):
         self.open.clicked.connect(self._open)
         layout.addWidget(self.open)
         set_row_floor(layout)
-
-    def add_tail(self, widget: QWidget) -> None:
-        """Add a widget to the end of the row: the stage buttons ride the folder row,
-        so a card does not spend a row on them."""
-        self.layout.addWidget(widget)
 
     def _show_tip(self, text: str) -> None:
         """The tooltip of the field: the path the user typed, the hint of the row when

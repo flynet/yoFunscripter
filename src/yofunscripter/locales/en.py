@@ -118,10 +118,19 @@ TEXTS = {
                     "speed of this run, not from a guess.",
 
     "console": "Console",
+    "console_open": "Open console",
+    "console_open_tip": "Show the log of the runs. The log is hidden until it is opened.",
+    "console_close": "Close console",
+    "console_close_tip": "Hide the log; the lines stay in it and the next run adds them.",
     "clear": "Clear",
     "clear_tip": "Remove the lines from the screen; the files of the run are not touched.",
     "console_tip": "Every line of a stage is written here: what was computed, what was "
                    "skipped and why.",
+
+    # The settings row: the commands of the page.
+    "help": "Help",
+    "help_tip": "Open the questions about the program on GitHub: how a stage works, "
+                "what an error means.",
 
     # One line of the stage in the console.
     "stage_start": "▶ {stage}: {source} → {out}",

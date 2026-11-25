@@ -19,6 +19,7 @@ sys.path.insert(0, str(REPO / "src"))
 from PySide6.QtWidgets import (QComboBox, QLineEdit, QPushButton, QSpinBox, QApplication,
                                QWidget)
 
+from yofunscripter.config.constants import HELP_URL
 from yofunscripter.config.settings import Settings
 from yofunscripter.i18n import set_language
 from yofunscripter.locales import CATALOG
@@ -72,7 +73,40 @@ def main() -> int:
     minimum = win.minimumSize()
     check(minimum.width() >= 600 and minimum.height() >= 500,
           f"the window has a readable minimum size ({minimum.width()}x{minimum.height()})")
-    check(win.console.minimumHeight() >= 60, "the console keeps its minimum height")
+    check(win.console.view.minimumHeight() >= 60, "the console keeps its minimum height")
+
+    # the log starts hidden: the window shows the folders and the bar, not the text,
+    # and the button of the block says what it does in its own state
+    closed_height = win.height()
+    check(not win.console.view.isVisible(), "the console is hidden at start")
+    check(not win.console.clear_button.isVisible(),
+          "«Clear» is hidden while the console is closed")
+    win.console.toggle.click()
+    app.processEvents()
+    check(win.console.view.isVisible() and win.console.clear_button.isVisible(),
+          "opening the console shows the log and «Clear»")
+    check(win.height() > closed_height, "an open log makes the window taller")
+    check(win.console.toggle.text() == CATALOG["en"]["console_close"],
+          "the button of an open console reads «Close console»")
+    win.console.toggle.click()
+    app.processEvents()
+    check(not win.console.view.isVisible() and not win.console.clear_button.isVisible(),
+          "closing the console hides the log and «Clear»")
+    check(win.height() == closed_height, "a closed log takes the empty box back")
+    check(win.console.toggle.text() == CATALOG["en"]["console_open"],
+          "the button of a closed console reads «Open console»")
+
+    # the commands of the settings page: Check for updates and Help stand on the row of
+    # the buttons of the page, not in the status line (the tab is hidden, so the row is
+    # checked by the y of the buttons)
+    same_row = (win.panel.save_button.y() == win.panel.updates_button.y() ==
+                win.panel.help_button.y() == win.panel.revert_button.y() ==
+                win.panel.restart_button.y())
+    check(same_row, "Check for updates and Help are on the row of the settings buttons")
+    check(win.panel.help_button.toolTip() == CATALOG["en"]["help_tip"],
+          "Help says what it opens")
+    check(HELP_URL == "https://github.com/flynet/yoFunscripter/issues",
+          f"Help opens the issues page ({HELP_URL})")
 
     cards = (win.scenes_card, win.scripts_card, win.merge_card)
     check(all(row.edit.minimumWidth() >= 220 for card in cards for row in card.rows),
@@ -86,10 +120,12 @@ def main() -> int:
               for card in cards),
           "the glyph buttons are named for the reader")
 
-    # the stage buttons ride the last folder row, so a card spends no row on them
-    same_row = all(card.start.y() == card.rows[-1].edit.y() and
-                   card.cancel.y() == card.rows[-1].edit.y() for card in cards)
-    check(same_row, "the stage buttons sit on the row of the folder")
+    # the stage buttons are in the top right corner of the card, on the line of the
+    # title, so they never push the folder buttons of the rows
+    top_right = all(abs(card.start.y() - card.head_label.y()) <= 2 and
+                    card.start.x() > card.hint_label.x() + card.hint_label.width() and
+                    card.cancel.x() > card.start.x() for card in cards)
+    check(top_right, "the stage buttons are in the top right of the card")
 
     # the title and the hint are one line of the card, not two
     one_line = all(abs(card.head_label.y() - card.hint_label.y()) <= 2 for card in cards)
@@ -98,8 +134,10 @@ def main() -> int:
     # a hint is one line of text: it has the height of that line, and the full
     # explanation is its tooltip
     hints = [card.hint_label for card in cards]
-    # one line: the height is the height of the line, plus the label margin Qt adds
-    check(all(h.height() <= h.fontMetrics().height() + 2 for h in hints),
+    # the text of a hint is one line: the height its text asks for is the height of the
+    # line (the label may be stretched taller by the buttons of the row, which is not
+    # the text wrapping)
+    check(all(h.sizeHint().height() <= h.fontMetrics().height() + 2 for h in hints),
           "every hint of a card is one line")
     check(all(h.toolTip() for h in hints), "the full text of a stage is in its tooltip")
 

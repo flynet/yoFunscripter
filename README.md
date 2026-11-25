@@ -9,11 +9,14 @@ Windows desktop app for three jobs on a folder of videos:
 3. **Merge** — pick clips by waves, join them in place (no re-encoding, no copies) into one
    video and one `.funscript`.
 
-Every setting of the window has a tooltip that says what it does in plain words. A stage
-is run by the play arrow at the end of its folder row and stopped by the square next to
-it — the two glyphs of any video player, so the window stays short. Each card is one line
-of text: the name of the stage and one short line of what it does; the full explanation
-is in the tooltip of the card.
+Every setting of the window has a tooltip that says what it does in plain words. Each
+card is one line of text — the name of the stage and one short line of what it does — and
+in the top right corner of that line the two buttons of the stage: the play arrow runs it,
+the square stops it, the two glyphs of any video player. The full explanation of a stage
+is in the tooltip of the card. The log is closed by default: **Open console** shows it and
+turns into **Close console**, and **Clear** appears only while the log is on screen.
+**Help** opens the issues page of this repository, and **Check for updates** stands on the
+row of the settings buttons.
 
 ## Requirements
 
@@ -57,10 +60,10 @@ used: the merge says how many files are missing and how many are old, and stage 
 them. Clips must be cut in one format: a clip that does not match is an error, fixed by
 cutting the scenes again.
 
-Every run has a play arrow (start) and a square (stop) on the row of its last folder:
-the square stops the run at once (the ffmpeg child is killed, the bar stops, the window
-is unlocked). The bar counts real units (seconds of source video, frames, seconds of the
-merged movie). The name of each button is in its tooltip.
+Every run has a play arrow (start) and a square (stop) in the top right corner of its
+card: the square stops the run at once (the ffmpeg child is killed, the bar stops, the
+window is unlocked). The bar counts real units (seconds of source video, frames, seconds
+of the merged movie). The name of each button is in its tooltip.
 
 `cuda` works in the CUDA build (`build.ps1 -Cuda`); in the CPU build stage 2 runs on the
 CPU.
@@ -97,9 +100,11 @@ CPU torch wheels back over the cu126 ones.
 ```
 
 `smoke_window.py` renders the window offscreen and checks the defaults, the tooltips of
-every control, the minimum sizes of the rows, the stage buttons on the folder row, the
-one-line hints, that no button clips its text, the order combo and its per-order
-tooltip, and that no console text uses the words of the code.
+every control, the minimum sizes of the rows, the stage buttons in the top right of a
+card, the console closed at start and opening with «Clear», the settings row (Revert,
+Restart, Check for updates, Help, Save), the one-line hints, that no button clips its
+text, the order combo and its per-order tooltip, and that no console text uses the words
+of the code.
 
 ## Release
 

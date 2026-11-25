@@ -22,6 +22,10 @@ GITHUB_REPO = "yoFunscripter"
 #: Prefix of a setup file in the releases: `YoFunscripter-Setup-1.0.0.exe`.
 SETUP_PREFIX = "YoFunscripter-Setup-"
 
+#: The page of the repository where the user asks a question and reads the answers:
+#: the «Help» button of the settings opens it in the browser.
+HELP_URL = "https://github.com/flynet/yoFunscripter/issues"
+
 #: Fallback folder names relative to the install dir when the settings have none.
 DEFAULT_SCENES_DIR = "scenes"
 DEFAULT_SCRIPTS_DIR = "scripts"

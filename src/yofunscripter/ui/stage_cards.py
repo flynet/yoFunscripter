@@ -52,22 +52,26 @@ class StageCard(QFrame):
         hint_label = QLabel(hint)
         hint_label.setObjectName("cardHint")
         hint_label.setToolTip(tip)
+        # the hint takes the space between the title and the buttons, so the buttons of
+        # the stage are in the top right corner of the card and never push the folder
+        # buttons of the rows
         head.addWidget(hint_label, 1)
-        layout.addLayout(head)
-        for row in rows:
-            layout.addWidget(row)
-        if extra is not None:
-            layout.addWidget(extra)
-        # the stage buttons ride the last folder row: a play arrow and a square, the
-        # glyphs of a player, no word, so no row is spent on them
+        # the stage buttons are the glyphs of a player: the play arrow runs the stage,
+        # the square stops it; a word takes a row of its own, a glyph does not, and the
+        # name of each button is its tooltip
         self.start = media_button(QStyle.StandardPixmap.SP_MediaPlay, tr("start_tip"),
                                   tr("start"), self)
         self.cancel = media_button(QStyle.StandardPixmap.SP_MediaStop, tr("cancel_tip"),
                                    tr("cancel"), self)
         self.cancel.setObjectName("mediaDanger")
         self.cancel.setEnabled(False)          # the button is for a run that is going
-        rows[-1].add_tail(self.start)
-        rows[-1].add_tail(self.cancel)
+        head.addWidget(self.start)
+        head.addWidget(self.cancel)
+        layout.addLayout(head)
+        for row in rows:
+            layout.addWidget(row)
+        if extra is not None:
+            layout.addWidget(extra)
         set_row_floor(layout)
         self.rows = rows
         self.extra = extra

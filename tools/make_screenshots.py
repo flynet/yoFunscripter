@@ -70,6 +70,9 @@ def main() -> None:
                      status=tr("status_cut"), scenes=9, files=9, detect="6.0",
                      cut="18.4", reason="")):
         win.log(line)
+    # the log starts closed, so the screenshot opens it the way a user does: the block
+    # shows the lines of the run and «Clear» appears with it
+    win.console.toggle.click()
     shot(win, out_dir / "main-en.png")
 
     s2 = Settings()
