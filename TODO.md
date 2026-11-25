@@ -140,6 +140,14 @@ State of the project, in the order of what is left.
   2390 MB (largest: `cublasLt64_12.dll` 532 MB,
   `cudnn_engines_precompiled64_9.dll` 514 MB, `cusparse64_12.dll` 288 MB,
   `cudnn_adv64_9.dll` 282 MB, `cufft64_11.dll` 277 MB).
+  The second CUDA build died in the PyInstaller analysis with
+  `FileNotFoundError: 'C:\Users\Home\miniconda3\Library\bin\libcrypto-3-x64.dll'`: the
+  machine has `C:\Users\Home\miniconda3` in PATH with no folder behind it (measured
+  `Test-Path` False for the folder and for `Library\bin`), and `libcrypto-3-x64.dll` is a
+  dependency of `_ssl.pyd`, so PyInstaller resolved the dependency through PATH and stopped.
+  The real file is in the uv python install
+  (`...cpython-3.12.11-windows-x86_64-none\DLLs`) and not in the venv. `build.ps1` filters
+  PATH to the directories that exist before PyInstaller runs.
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
   installer, and the window icon is set from the bundle; it has not been seen in the
   taskbar of a running packaged app.
