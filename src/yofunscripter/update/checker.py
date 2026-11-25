@@ -7,6 +7,11 @@ is one console line, not a hang: the window keeps running.
 The setup file is named `YoFunscripter-Setup-<version>.exe` — the contract with the
 release workflow. The download is resumed from the byte the file reached, because GitHub
 answers a big installer over a slow link in pieces, and a restart from zero never finishes.
+
+The repository is private, so `releases/latest` answers 404 to a request without a token:
+the app sends the token of `YOFUNSCRIPTER_GITHUB_TOKEN` when the environment has one, and
+reads the release, the digest and the installer with it. Without a token the check reports
+that there is nothing to show, which is the truth for a private repository.
 """
 
 from __future__ import annotations
@@ -31,6 +36,10 @@ API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/l
 #: (`tools/update_fixture.py`) to try the whole chain: read the release, download the
 #: installer, check the digest, start the installer.
 API_URL_ENV = "YOFUNSCRIPTER_UPDATE_API"
+#: A private repository answers 404 to the app, so the releases are read with a token.
+#: The token is taken from the environment and never stored inside the program: a
+#: fine-grained token that can read the repository is enough (`YOFUNSCRIPTER_GITHUB_TOKEN`).
+TOKEN_ENV = "YOFUNSCRIPTER_GITHUB_TOKEN"
 SHA_SUFFIX = ".sha256"
 INSTALLER_ARGS = ["/SILENT", "/SUPPRESSMSGBOXES", "/CLOSEAPPLICATIONS", "/NORESTART"]
 #: Windows flag: the installer runs detached, no console window is shown.
@@ -56,6 +65,10 @@ class Asset:
     name: str
     url: str
     size: int
+    #: The API address of the same file (`https://api.github.com/repos/.../releases/assets/<id>`).
+    #: A private repository answers 404 to `browser_download_url`, and this address with the
+    #: token and `Accept: application/octet-stream` gives the file.
+    api_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -105,9 +118,21 @@ def parse_release(payload: Mapping[str, Any]) -> Release | None:
         date=str(payload.get("published_at") or "")[:10],
         body=str(payload.get("body") or ""),
         installer=Asset(str(installer["name"]), str(installer["browser_download_url"]),
-                        int(installer.get("size", 0))),
-        sha256_asset=Asset(str(sha["name"]), str(sha["browser_download_url"]), 0) if sha else None,
+                        int(installer.get("size", 0)), str(installer.get("url", ""))),
+        sha256_asset=Asset(str(sha["name"]), str(sha["browser_download_url"]), 0,
+                           str(sha.get("url", ""))) if sha else None,
     )
+
+
+def download_url(asset: Asset) -> str:
+    """The address to read the file from: the API address with a token, the web address without.
+
+    A private release gives 404 on `browser_download_url` (that address needs a browser
+    session), so the token reads the file through the API address of the asset.
+    """
+    if github_token() and asset.api_url:
+        return asset.api_url
+    return asset.url
 
 
 def strip_v(tag: str) -> str:
@@ -132,6 +157,22 @@ def is_newer(current: str, latest: str) -> bool:
     return theirs > mine
 
 
+def github_token() -> str:
+    """The token of the releases from the environment, empty when there is none."""
+    return os.environ.get(TOKEN_ENV, "").strip()
+
+
+def auth_headers(extra: dict | None = None) -> dict:
+    """The headers of a request: the user agent, and the token when the repository is private."""
+    headers = {"User-Agent": USER_AGENT}
+    token = github_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if extra:
+        headers.update(extra)
+    return headers
+
+
 def api_url() -> str:
     """Where to read `releases/latest`: the variable's address, else the repository."""
     return os.environ.get(API_URL_ENV, "").strip() or API_URL
@@ -146,8 +187,8 @@ def fetch_release(url: str | None = None, timeout: float = API_TIMEOUT) -> Relea
     target = url or api_url()
     try:
         with httpx.Client(follow_redirects=True, timeout=timeout) as client:
-            response = client.get(target, headers={"User-Agent": USER_AGENT,
-                                                   "Accept": "application/vnd.github+json"})
+            response = client.get(target, headers=auth_headers(
+                {"Accept": "application/vnd.github+json"}))
     except httpx.HTTPError as exc:
         raise UpdateError(tr("update_failed", reason=exc)) from exc
     if response.status_code == 404:
@@ -180,11 +221,12 @@ def parse_sha(text: str) -> str:
     return first.lower()
 
 
-def fetch_expected_sha(url: str, timeout: float = API_TIMEOUT) -> str:
+def fetch_expected_sha(asset: Asset) -> str:
     """The expected digest from the release asset."""
     try:
-        with httpx.Client(follow_redirects=True, timeout=timeout) as client:
-            response = client.get(url, headers={"User-Agent": USER_AGENT})
+        with httpx.Client(follow_redirects=True, timeout=API_TIMEOUT) as client:
+            response = client.get(download_url(asset),
+                                  headers=auth_headers({"Accept": "application/octet-stream"}))
     except httpx.HTTPError as exc:
         raise UpdateError(tr("update_failed", reason=exc)) from exc
     if response.status_code >= 400:
@@ -212,7 +254,7 @@ def _final_size(headers: Mapping[str, str], done: int, length: int) -> int:
     return done + length
 
 
-def download_installer(url: str, target: Path, on_chunk=None) -> Path:
+def download_installer(asset: Asset, target: Path, on_chunk=None) -> Path:
     """Save the installer to `target`; `on_chunk(written, total)` reports the bytes.
 
     A connection that breaks is tried again from the byte the file reached. Every network
@@ -220,10 +262,11 @@ def download_installer(url: str, target: Path, on_chunk=None) -> Path:
     leaving the program to hang with a moving bar and no word about the update.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
+    url = download_url(asset)
     last: Exception | None = None
     for _attempt in range(DOWNLOAD_ATTEMPTS):
         done = target.stat().st_size if target.exists() else 0
-        headers = {"User-Agent": USER_AGENT}
+        headers = auth_headers({"Accept": "application/octet-stream"})
         if done:
             headers["Range"] = f"bytes={done}-"
         try:

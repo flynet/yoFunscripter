@@ -62,6 +62,63 @@ def test_api_url_override(monkeypatch):
     assert checker.api_url() == checker.API_URL
 
 
+def test_token_headers(monkeypatch):
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    assert checker.auth_headers() == {"User-Agent": checker.USER_AGENT}
+    monkeypatch.setenv(checker.TOKEN_ENV, "abc")
+    assert checker.auth_headers()["Authorization"] == "Bearer abc"
+    head = checker.auth_headers({"Accept": "application/vnd.github+json"})
+    assert head["Accept"] == "application/vnd.github+json"
+    assert head["Authorization"] == "Bearer abc"
+
+
+class _Client:
+    """A `httpx.Client` that answers one canned response and remembers the request."""
+
+    def __init__(self, payload, status=200):
+        self.payload = payload
+        self.status = status
+        self.sent = {}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def get(self, url, headers=None):
+        self.sent = {"url": url, "headers": dict(headers or {})}
+        return _HttpResponse(self.payload, self.status)
+
+
+class _HttpResponse:
+    def __init__(self, payload, status):
+        self.payload = payload
+        self.status_code = status
+        self.text = str(payload)
+
+    def json(self):
+        return self.payload
+
+
+def test_fetch_release_uses_the_token(monkeypatch):
+    monkeypatch.setenv(checker.TOKEN_ENV, "secret-token")
+    client = _Client(_release())
+    monkeypatch.setattr(checker.httpx, "Client", lambda **kw: client)
+    release = checker.fetch_release()
+    assert release.version == "1.2.3"
+    assert client.sent["headers"]["Authorization"] == "Bearer secret-token"
+
+
+def test_fetch_release_without_a_token(monkeypatch):
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    client = _Client(_release())
+    monkeypatch.setattr(checker.httpx, "Client", lambda **kw: client)
+    checker.fetch_release()
+    assert "Authorization" not in client.sent["headers"]
+    assert client.sent["url"] == checker.API_URL
+
+
 def test_parse_sha():
     assert checker.parse_sha("ABCDEF  file.exe\n") == "abcdef"
     assert checker.parse_sha("  abcdef  ") == "abcdef"
@@ -105,6 +162,8 @@ class _Response:
 
 
 def test_download_resumes_from_existing_bytes(tmp_path, monkeypatch):
+    monkeypatch.setenv(checker.TOKEN_ENV, "token")
+    asset = checker.Asset("setup.exe", "https://example.test/setup.exe", 6)
     target = tmp_path / "setup.exe"
     target.write_bytes(b"old")
     seen = {}
@@ -114,8 +173,9 @@ def test_download_resumes_from_existing_bytes(tmp_path, monkeypatch):
         return _Response(headers={"content-range": "bytes 3-5/6"}, chunks=(b"def",))
 
     monkeypatch.setattr(checker.httpx, "stream", fake_stream)
-    checker.download_installer("https://example.test/setup.exe", target)
+    checker.download_installer(asset, target)
     assert seen["headers"]["Range"] == "bytes=3-"
+    assert seen["headers"]["Authorization"] == "Bearer token"
     assert target.read_bytes() == b"olddef"
 
 
@@ -124,5 +184,24 @@ def test_download_empty_answer_is_an_error(tmp_path, monkeypatch):
         return _Response(status_code=500)
 
     monkeypatch.setattr(checker.httpx, "stream", fake_stream)
+    asset = checker.Asset("setup.exe", "https://example.test/setup.exe", 6)
     with pytest.raises(checker.UpdateError):
-        checker.download_installer("https://example.test/setup.exe", tmp_path / "s.exe")
+        checker.download_installer(asset, tmp_path / "s.exe")
+
+
+def test_download_url_of_a_private_release(monkeypatch):
+    asset = checker.Asset("setup.exe", "https://github.com/x/y/releases/download/v1/s.exe",
+                          6, "https://api.github.com/repos/x/y/releases/assets/7")
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    assert checker.download_url(asset) == asset.url
+    monkeypatch.setenv(checker.TOKEN_ENV, "token")
+    assert checker.download_url(asset) == asset.api_url
+    monkeypatch.setenv(checker.TOKEN_ENV, "")
+    assert checker.download_url(asset) == asset.url
+
+
+def test_parse_release_keeps_the_api_url():
+    payload = _release()
+    payload["assets"][0]["url"] = "https://api.github.com/repos/x/y/releases/assets/7"
+    release = checker.parse_release(payload)
+    assert release.installer.api_url.endswith("/assets/7")

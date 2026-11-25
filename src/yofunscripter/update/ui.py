@@ -60,10 +60,10 @@ class DownloadThread(QThread):
 
     def run(self) -> None:
         try:
-            path = checker.download_installer(self.release.installer.url, self.target,
+            path = checker.download_installer(self.release.installer, self.target,
                                               self._chunk)
             if self.release.sha256_asset is not None:
-                expected = checker.fetch_expected_sha(self.release.sha256_asset.url)
+                expected = checker.fetch_expected_sha(self.release.sha256_asset)
                 if not checker.verify(path, expected):
                     self.failed.emit(tr("sha_mismatch"))
                     return

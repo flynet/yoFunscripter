@@ -108,7 +108,7 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> di
         on_log(f"clips {len(clips)}, to generate {len(todo)}, weights "
                f"{weights.name} sha1 {model_version}")
 
-    device = _device(opts.device)
+    device = _device(opts.device, on_log)
     model, device = load_model(weights, device)
     if opts.threads and opts.threads > 1:
         try:
@@ -183,11 +183,24 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> di
     return summary
 
 
-def _device(name: str):
-    """Settings device -> the device argument of load_model (auto = GPU if available)."""
+def _device(name: str, on_log=None):
+    """Settings device -> the device argument of `load_model` (auto = GPU if available).
+
+    `cuda` in a build whose torch is CPU-only has no CUDA device: ultralytics answers the
+    big `Invalid CUDA 'device=0'` error on every clip. The device is resolved once at the
+    start of the stage, so the stage says the truth in one line and runs on the CPU.
+    """
+    import torch
+
     if name in ("auto", ""):
         return None
-    return 0 if name == "cuda" else "cpu"
+    if name == "cpu":
+        return "cpu"
+    if not torch.cuda.is_available():
+        if on_log is not None:
+            on_log("CUDA в этой сборке недоступна (torch без CUDA) → генерация на CPU")
+        return "cpu"
+    return 0
 
 
 def _skip_row(clip: Path, sidecar: Path, model_version: str) -> dict:

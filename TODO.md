@@ -70,22 +70,36 @@ State of the project, in the order of what is left.
   ffmpeg calls and the worker threads are the same code the source runs, and the source is
   measured end to end. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has
   not been done.
-- **The updater against the repository.** The release `v1.0.0` exists
-  (`https://github.com/flynet/yoFunscripter/releases/tag/v1.0.0`) with the two assets
-  `YoFunscripter-Setup-1.0.0.exe` (228.4 MB) and
-  `YoFunscripter-Setup-1.0.0.exe.sha256` (96 bytes), and GitHub's own digest of the asset is
-  `sha256:7cc86494389a1f21e8ba3e08a0f1c2a1d6af3da03991f06964516813858d733c` — the same value
-  `build.ps1` wrote into the `.sha256` file, so `verify()` has the right expectation. The
-  repository is **private**: the unauthenticated `releases/latest` answers 404 (measured),
-  while the same call with the token answers 200, so `fetch_release` of the installed program
-  finds nothing. The repository has to be public for the «Check for updates» button to work
-  for anyone. The owner chose to keep the repository private, so the button of the installed
-  program finds nothing by design and the installer is taken from the release page by hand;
-  `fetch_release`, the download and the silent install stay measured only by unit tests.
+- **The updater against the repository.** The releases `v1.0.0` and `v1.0.1` exist
+  (`https://github.com/flynet/yoFunscripter/releases`) with the assets
+  `YoFunscripter-Setup-<version>.exe` and `YoFunscripter-Setup-<version>.exe.sha256`; the
+  digest `build.ps1` writes equals GitHub's own digest of the asset, so `verify()` has the
+  right expectation. The repository is **private**, so:
+  - `releases/latest` answers 404 without a token (measured) and 200 with the token;
+  - `browser_download_url` answers 404 for a private release (it needs a browser session),
+    and the API address of the asset `https://api.github.com/.../releases/assets/<id>` with
+    `Accept: application/octet-stream` gives the file (measured);
+  - the app sends the token from `YOFUNSCRIPTER_GITHUB_TOKEN`, and reads the release, the
+    digest and the installer with it. With the token the whole chain is measured against
+    the real private release: `fetch_release` → `1.0.1`, `is_newer("1.0.0", "1.0.1")` → True,
+    the installer downloaded byte for byte (239407095 bytes, 229 chunk reports), the SHA-256
+    of the release asset matched the file, the command is
+    `setup.exe /SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART` with
+    `DETACHED_PROCESS` (the installer was not launched, `Popen` was stubbed).
+  - Without a token the button reports that there is nothing to show, which is the truth
+    for a private repository. The owner keeps the repository private; the token of a
+    read-only fine-grained PAT is given to the machines that should receive updates, and
+    `YOFUNSCRIPTER_UPDATE_API` aims the check at a local fixture (`tools/update_fixture.py`)
+    to test the chain without any token.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
-- **The CUDA build.** `build.ps1 -Cuda` has not been run; the device selector
-  `auto`/`cuda` is untested on the machine with the GPU.
+- **The CUDA build.** `build.ps1 -Cuda` has not been run, so every installer shipped so far
+  carries the CPU-only torch (`torch 2.15.0+cpu`, `cuda.is_available()` False). `cuda` in
+  the settings cannot work in such a build: ultralytics raised the big `Invalid CUDA
+  'device=0'` error on every clip of the user's 21-clip run. The device is now resolved once
+  at the start of stage 2 (`_device`), so the log says the truth in one line and the run
+  goes on the CPU. The GPU build with the cu126 wheels has to be built and measured on the
+  machine with the GPU.
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
   installer, and the window icon is set from the bundle; it has not been seen in the
   taskbar of a running packaged app.

@@ -63,6 +63,30 @@ regenerated. Progress is measured in frames.
 keep the folder order, random. `min_waves` (default 3) drops clips with fewer waves,
 `0` keeps everything. The encode + concat progress is measured in seconds of video.
 
+The device `cuda` works only in a build that carries the CUDA wheels of torch
+(`build.ps1 -Cuda`). The default installer ships the CPU wheels, so `cuda` falls back to
+the CPU at the start of stage 2 and says so in the log: the run finishes, the clips are
+generated on the CPU.
+
+## Updates
+
+**Check for updates** reads `releases/latest` of `flynet/yoFunscripter`. The repository is
+private, so the app needs a read-only token: set `YOFUNSCRIPTER_GITHUB_TOKEN` (a
+fine-grained PAT with read access to the repository) in the environment of the machine that
+should receive updates. The release, the `.sha256` asset and the installer are then read
+through the API address of the asset, the digest is checked and the installer is started
+silently. Without a token the button reports that there is no release, and the installer is
+taken from the release page by hand.
+
+`YOFUNSCRIPTER_UPDATE_API` aims the check at another address, so the whole chain can be
+tried against a local fixture:
+
+```powershell
+.venv\Scripts\python.exe tools\update_fixture.py            # release.json + installer + .sha256
+.venv\Scripts\python.exe -m http.server 8765 --directory %TEMP%\yofunscripter-fixture
+set YOFUNSCRIPTER_UPDATE_API=http://127.0.0.1:8765/release.json
+```
+
 ## Build from source
 
 ```powershell
