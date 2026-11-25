@@ -65,9 +65,12 @@ Run without packaging: `run.bat`
 Selftest of the frozen build (imports the stages load at runtime, prints `OK`):
 
 ```powershell
-uv run pyinstaller --clean --noconfirm tools\selftest.spec
+uv run --no-sync pyinstaller --clean --noconfirm tools\selftest.spec
 dist\selftest\selftest.exe
 ```
+
+`--no-sync` keeps the wheels of the venv: a plain `uv run` syncs the project and puts the
+CPU torch wheels back over the cu126 ones.
 
 ```powershell
 .venv\Scripts\python.exe tools\make_screenshots.py

@@ -5,8 +5,10 @@ PyInstaller reports nothing about a module imported inside a function (`import t
 only as a window that says "no module named ...". This program imports them in the frozen
 build and loads the bundled model, so the same failure prints on the console:
 
-    uv run pyinstaller --clean --noconfirm tools/selftest.spec
+    uv run --no-sync pyinstaller --clean --noconfirm tools/selftest.spec
     dist\\selftest\\selftest.exe
+
+`--no-sync` keeps the wheels of the venv, so a CUDA venv builds a CUDA selftest.
 
 It builds the same packages as `yofunscripter.spec` (`collect_all` of ultralytics,
 scenedetect, cv2, numpy, yaml, httpx) with no Qt, so the check is fast and reads one

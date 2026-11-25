@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """Onedir build of `tools/selftest.py`: the packages the app ships, with no Qt.
 
-    uv run pyinstaller --clean --noconfirm tools/selftest.spec
+    uv run --no-sync pyinstaller --clean --noconfirm tools/selftest.spec
 
 The `collect_all` list is the same as in `yofunscripter.spec`, so a module that the app
 build misses is missed here too, and the selftest prints it on the console.
