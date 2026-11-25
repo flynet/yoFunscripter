@@ -36,6 +36,19 @@ jobs:
         # tools\fetch_ffmpeg.ps1 (the build ships bin\ffmpeg.exe and bin\ffprobe.exe)
         run: powershell -ExecutionPolicy Bypass -File build.ps1
 
+      - name: Check the imports of the frozen build
+        shell: pwsh
+        # torch and ultralytics are imported inside the stage functions, so PyInstaller
+        # does not report them: the selftest runs the same collect_all list without Qt
+        # and prints OK
+        run: |
+          uv run pyinstaller --clean --noconfirm tools\selftest.spec
+          $exe = "dist\selftest\selftest.exe"
+          if (-not (Test-Path $exe)) { throw "the selftest build is not at $exe" }
+          $line = & $exe
+          Write-Host $line
+          if ($LASTEXITCODE -ne 0) { throw "the selftest of the frozen build failed" }
+
       - name: Check the file name against the release
         shell: pwsh
         run: |

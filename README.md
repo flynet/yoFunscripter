@@ -81,6 +81,15 @@ Development run without packaging:
 run.bat
 ```
 
+Check the frozen build for the imports the stages load at runtime (`torch`,
+`ultralytics`, `cv2`, `scenedetect`, the bundled model). It builds the same packages as
+`yofunscripter.spec` without Qt, and prints `OK`:
+
+```powershell
+uv run pyinstaller --clean --noconfirm tools\selftest.spec
+dist\selftest\selftest.exe
+```
+
 The README screenshots are rendered by the app's own window code (offscreen, no run):
 
 ```powershell

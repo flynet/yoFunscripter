@@ -38,15 +38,20 @@ State of the project, in the order of what is left.
   `%APPDATA%\YoFunscripter` — Qt, cv2, scenedetect and the settings path load in the
   frozen build.
 
+- **The imports of the frozen build.** `tools/selftest.py` + `tools/selftest.spec` build
+  the same packages as `yofunscripter.spec` without Qt and run in the frozen build:
+  `torch 2.15.0+cpu` (cuda False), `cv2 5.1.0`, `scenedetect 0.7.3`,
+  `ultralytics 8.4.218`, `models/best.pt` loads with 5 classes, `OK`, exit 0. So the
+  lazy imports of stage 2 (`import torch`, `from ultralytics import YOLO`) are complete
+  in the packaged build.
+
 ## Left
 
-- **The packaged app against the real work.** `import torch` and
-  `from ultralytics import YOLO` happen inside the stage functions, so PyInstaller reports
-  nothing about them: a missing hidden import shows only when stage 2 runs in the frozen
-  build. A selftest program (import torch/cv2/scenedetect/ultralytics + load
-  `models/best.pt`) is built with the same `collect_all` list as the app spec and run as
-  the console build. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has
-  not been done.
+- **One run inside the packaged app.** The stage code inside the frozen build has not
+  been driven: the selftest proves the imports and the model, the ffmpeg calls and the
+  worker threads are the same code the source runs, and the source is measured
+  end to end. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has not
+  been done.
 - **The updater against the repository.** `github.com/flynet/yoFunscripter` returns 404,
   so `fetch_release`, the download and the silent install are tested only by unit tests.
   The repository must be created and `v1.0.0` released before the button does anything.
