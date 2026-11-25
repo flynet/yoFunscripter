@@ -35,6 +35,8 @@ foreach ($name in @("ffmpeg.exe", "ffprobe.exe")) {
     $path = Join-Path $target $name
     if (-not (Test-Path $path)) { throw "$name not extracted" }
     $version = (& $path -version 2>&1 | Select-Object -First 1)
-    Write-Host "$name: $version"
+    # `$name:` in a double-quoted string is a drive-qualified variable reference, so the
+    # name is put in braces: the runner stops the build on a parse error
+    Write-Host "$($name): $version"
 }
 Write-Host "FFmpeg binaries: $target"
