@@ -68,14 +68,20 @@ if ($Cuda) {
     $code = $LASTEXITCODE
     $ErrorActionPreference = "Stop"
     if ($code -ne 0) { throw "torch CUDA install failed" }
+    # the check of the wheels: a CPU torch in the venv makes a CUDA build that cannot use
+    # the GPU, and the installer is over 2.5 GB, so building it is pointless
+    $wheels = (& ".venv\Scripts\python.exe" -c "import torch; print(torch.__version__)" 2>$null)
+    Write-Host "torch in the venv: $wheels"
+    if ($wheels -notmatch "cu126") { throw "the venv has $wheels, not the cu126 wheels" }
 }
 
 # --- 4. PyInstaller ----------------------------------------------------------
 # uv and PyInstaller write progress on stderr: NativeCommandError must not stop the
-# script, the exit code is the real check.
+# script, the exit code is the real check. `--no-sync` keeps the venv as it is: a plain
+# `uv run` syncs the project and puts the CPU torch wheels back over the cu126 ones.
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 $ErrorActionPreference = "Continue"
-uv run pyinstaller --clean --noconfirm yofunscripter.spec
+uv run --no-sync pyinstaller --clean --noconfirm yofunscripter.spec
 $code = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($code -ne 0) { throw "PyInstaller failed" }
