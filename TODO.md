@@ -91,22 +91,35 @@ State of the project, in the order of what is left.
     answered 404, the API asset address with `Accept: application/octet-stream` gave the
     file);
   - `YOFUNSCRIPTER_UPDATE_API` aims the check at a local fixture
-    (`tools/update_fixture.py`) to test the chain end to end without any network.
+    (`tools/update_fixture.py`) to test the chain end to end without any network. The flow
+    inside the window is measured with the fixture as 1.0.3 against the app of 1.0.2: the
+    status line becomes `A new release 1.0.3 is available (2026-11-25)`, the window opens
+    the dialog itself, the Download button is enabled and Install is not, the real download
+    thread writes 3145728 bytes with the bar at 100, the SHA-256 of the downloaded file
+    equals the published one, Install becomes enabled and Download is disabled, and the file
+    lands in the app data (`<app data>/yoFunscripter/updates/`), not in a user folder. The
+    Install button is never pressed: the fixture file is not an installer.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
 - **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv pip
-  install` without `--reinstall` printed `Audited 2 packages` and changed nothing, and `uv
-  run pyinstaller` syncs the project, so it put the CPU wheels back over the cu126 wheels
-  (the build carried `torch-2.15.0+cpu.dist-info`). `build.ps1` now uses
-  `uv pip install --reinstall` and `uv run --no-sync` and stops the build when the venv
-  does not have the cu126 wheels. A probe process of the venv that is still running locks
+  install` without `--reinstall` printed `Audited 2 packages` and changed nothing (the CPU
+  wheels already satisfy the requirement), and `uv run pyinstaller` syncs the project, so it
+  put the CPU wheels back over the cu126 wheels (the build carried
+  `torch-2.15.0+cpu.dist-info`). `build.ps1` now uses `uv pip install --reinstall` and
+  `uv run --no-sync`, and stops the build when the venv does not have the cu126 wheels (the
+  control caught the first attempt). A probe process of the venv that is still running locks
   `numpy.libs` and the install fails halfway with `os error 5`, so no venv process is left
-  open before the CUDA install. The GPU build with the cu126 wheels has to be built and
-  measured on the machine with the GPU (`RTX 4060 Laptop, driver 621.24, 8 GB`). `cuda` in
-  the settings cannot work in a CPU build: ultralytics raised the big `Invalid CUDA
-  'device=0'` error on every clip of the user's 21-clip run, so the device is resolved once
-  at the start of stage 2 (`_device`) and the stage falls back to the CPU with one line in
-  the log.
+  open before the CUDA install. After the fix the venv reports `torch 2.14.1+cu126`,
+  `torch.version.cuda 12.6`, `cuda.is_available()` True, device `NVIDIA GeForce RTX 4060
+  Laptop GPU`, `torchvision 0.29.1+cu126`, and `uv run --no-sync python` reports the same
+  `2.14.1+cu126`. `_device` with the real torch is measured: `auto` and `""` → `None`,
+  `cpu` → `'cpu'`, `cuda` → `0` (the GPU) with no log line. What is not measured: the CUDA
+  libraries that the packaged build carries, the size of the CUDA installer (the limit of a
+  GitHub release asset is 2 GiB), and one frame of GPU inference in the frozen build.
+  `cuda` in the settings cannot work in a CPU build: ultralytics raised the big `Invalid
+  CUDA 'device=0'` error on every clip of the user's 21-clip run, so the device is resolved
+  once at the start of stage 2 (`_device`) and the stage falls back to the CPU with one line
+  in the log.
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
   installer, and the window icon is set from the bundle; it has not been seen in the
   taskbar of a running packaged app.
