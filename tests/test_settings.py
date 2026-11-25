@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import json
 
-from yofunscripter.config.settings import Settings, load_settings, save_settings
+from yofunscripter.config.settings import DEFAULT_THEME, Settings, load_settings, save_settings
 
 
 def test_defaults(tmp_path):
     s = load_settings(tmp_path / "settings.json")
     assert s.language == "en"
-    assert s.theme == "neon"
+    assert s.theme == DEFAULT_THEME == "neon"
     assert s.device == "auto"
     assert s.jobs == 1 and s.threads == 1
     assert s.min_waves == 3 and s.max_waves == 0
@@ -41,7 +41,7 @@ def test_invalid_values_fall_back(tmp_path):
     }), encoding="utf-8")
     s = load_settings(path)
     assert s.language == "en"
-    assert s.theme == "neon"
+    assert s.theme == DEFAULT_THEME
     assert s.device == "auto"
     assert s.jobs == 1
     assert s.threads == 64

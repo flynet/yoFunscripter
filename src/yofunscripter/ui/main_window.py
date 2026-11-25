@@ -31,7 +31,7 @@ from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
 from yofunscripter.ui.theme import apply_theme
-from yofunscripter.ui.widgets import ConsolePanel, fmt_time
+from yofunscripter.ui.widgets import ConsolePanel, fmt_time, set_row_floor
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
 from yofunscripter.workers import StageWorker
@@ -71,16 +71,21 @@ class MainWindow(QMainWindow):
 
         self.console = ConsolePanel()
         main_layout.addWidget(self.console, 1)
+        # the rows of the cards keep the height their text asks for, so a short window
+        # shrinks the console, not the text of the folders
+        set_row_floor(main_layout)
         self.tabs.addTab(self.main_tab, tr("tab_main"))
 
         self.panel = SettingsPanel(settings, self.layout.model_path)
         self.tabs.addTab(self.panel, tr("tab_settings"))
         outer.addWidget(self.tabs)
+        set_row_floor(outer)
 
         self.status = QLabel(tr("progress_idle"))
         self.statusBar().addWidget(self.status, 1)
         self.update_button = QPushButton(tr("check_updates"))
         self.update_button.setObjectName("browse")
+        self.update_button.setToolTip(tr("check_updates_tip"))
         self.update_button.clicked.connect(self._check_updates)
         self.statusBar().addPermanentWidget(self.update_button)
 

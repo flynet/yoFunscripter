@@ -35,6 +35,15 @@ SORT_WAVES_DESC = "waves_desc"
 SORT_KEEP = "keep"
 SORT_RANDOM = "random"
 SORT_MODES = (SORT_TICK_RATE, SORT_WAVES_ASC, SORT_WAVES_DESC, SORT_KEEP, SORT_RANDOM)
+#: The key of the catalog for each mode: the window shows the label, the console of the
+#: merge names the order in the language of the window. One source for both.
+SORT_LABEL_KEYS = {
+    SORT_TICK_RATE: "sort_tick_rate",
+    SORT_WAVES_ASC: "sort_waves_asc",
+    SORT_WAVES_DESC: "sort_waves_desc",
+    SORT_KEEP: "sort_keep",
+    SORT_RANDOM: "sort_random",
+}
 
 
 def order_kept(kept: list[dict], sort_mode: str) -> None:

@@ -19,9 +19,10 @@ from yofunscripter.i18n import DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES, Language
 from yofunscripter.pipeline.funscript_select import SORT_MODES, SORT_TICK_RATE
 
 ThemeName = Literal["cartoons", "neon", "pink"]
-#: Neon first: it is the default of the app. The names are the style of the palette,
-#: three schemes taken from PyDownload, so the window looks the same as the sister app.
+#: The three schemes of the sister app PyDownload. `neon` is the default: the app is
+#: built around this palette, `cartoons` and `pink` are picked by hand in the settings.
 THEMES: tuple[ThemeName, ...] = ("neon", "cartoons", "pink")
+DEFAULT_THEME: ThemeName = "neon"
 
 DeviceName = Literal["auto", "cpu", "cuda"]
 #: Auto first: the model uses the GPU when it is there, `cpu` is the reproducible run,
@@ -41,7 +42,7 @@ class Settings:
     #: Language of the interface, applied at startup: a widget writes its text when it
     #: is built, so changing the language needs a restart.
     language: Language = DEFAULT_LANGUAGE
-    theme: ThemeName = "neon"
+    theme: ThemeName = DEFAULT_THEME
     #: ffmpeg processes of stage 1 (the same parameter as the yolo run).
     jobs: int = DEFAULT_JOBS
     #: torch threads of stage 2 (the same parameter as the yolo run).
@@ -110,7 +111,7 @@ def load_settings(path: Path) -> Settings:
         if type(value) is type(default):
             setattr(settings, key, value)
     if settings.theme not in THEMES:
-        settings.theme = "neon"
+        settings.theme = DEFAULT_THEME
     if settings.language not in SUPPORTED_LANGUAGES:
         settings.language = DEFAULT_LANGUAGE
     if settings.device not in DEVICES:

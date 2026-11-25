@@ -24,10 +24,11 @@ from .funscript_common import write_rows
 from .funscript_concat import (check_concat_inputs, check_final, concat, probe)
 from .funscript_merge import (load_order, merged_gap_check, merge_segments, merged_payload,
                               write_merged)
-from .funscript_select import SELECTION_COLUMNS, SORT_TICK_RATE, select
+from .funscript_select import (SELECTION_COLUMNS, SORT_LABEL_KEYS, SORT_TICK_RATE, select)
 from .funscript_video import SUMMARY_COLUMNS
 from .paths import layout
 from .progress import ProgressMeter
+from yofunscripter.i18n import tr
 
 PROBE_WEIGHT = 0.05
 CONCAT_WEIGHT = 0.95
@@ -76,33 +77,43 @@ def list_clips(opts: MergeOptions) -> list[Path]:
     return sorted(q for q in opts.clips_dir.glob(opts.pattern) if q.is_file())
 
 
-def pair_sidecars(opts: MergeOptions, clips: list[Path], on_log=None) -> list[Path]:
+def _stamp(path: Path) -> str:
+    """Time of a file as `MM-DD hh:mm`: the freshness line compares two files by eye."""
+    return time.strftime("%m-%d %H:%M", time.localtime(path.stat().st_mtime))
+
+
+def pair_sidecars(opts: MergeOptions, clips: list[Path], on_log=None) -> tuple[list[Path], int, int]:
     """Sidecars of `scripts_dir` paired with clips by stem, yolo freshness rule.
 
     A sidecar is usable only if it is **newer** than the clip: a replaced clip (same name,
     new mtime) must be regenerated, otherwise the merge pairs the new video with the old
-    graph.
+    graph. Returns the pairs and the two counts the window shows: missing and stale.
     """
-    sidecars = []
+    sidecars: list[Path] = []
+    missing = 0
+    stale = 0
     for clip in clips:
         sc = opts.scripts_dir / (clip.stem + ".funscript")
         if not sc.is_file():
+            missing += 1
             if on_log is not None:
-                on_log(f"{clip.name}: sidecar missing in {opts.scripts_dir}")
+                on_log(tr("scripts_missing", clip=clip.name, dir=opts.scripts_dir))
             continue
         if sc.stat().st_mtime < clip.stat().st_mtime:
+            stale += 1
             if on_log is not None:
-                on_log(f"{clip.name}: sidecar older than clip — regenerate it in stage 2")
+                on_log(tr("scripts_stale", clip=clip.name, when=_stamp(sc),
+                         clip_when=_stamp(clip)))
             continue
         sidecars.append(sc)
-    return sidecars
+    return sidecars, missing, stale
 
 
 def plan(cfg: dict, opts: MergeOptions) -> dict:
     """Dry plan: selection of clips for the merge (nothing is written)."""
     cfg = gui_config(cfg, opts)
     clips = list_clips(opts)
-    sidecars = pair_sidecars(opts, clips)
+    sidecars, _, _ = pair_sidecars(opts, clips)
     rows = select(sidecars, opts.min_waves, opts.max_waves, opts.sort_mode, opts.clips_dir)
     kept = [r for r in rows if r["status"] == "kept"]
     total_ms = sum(int(r["duration_ms"]) for r in kept)
@@ -145,26 +156,27 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
 
     clips = list_clips(opts)
     if not clips:
-        raise ValueError(f"no clips in {opts.clips_dir} ({opts.pattern})")
+        raise ValueError(tr("merge_no_clips", dir=opts.clips_dir, pattern=opts.pattern))
 
     t0 = time.time()
-    sidecars = pair_sidecars(opts, clips, on_log)
+    sidecars, missing, stale = pair_sidecars(opts, clips, on_log)
     if not sidecars:
-        raise ValueError(f"no sidecars for the clips of {opts.clips_dir} in {opts.scripts_dir}")
+        raise ValueError(tr("merge_no_scripts", clips=len(clips), missing=missing,
+                           stale=stale, dir=opts.scripts_dir))
     rows = select(sidecars, opts.min_waves, opts.max_waves, opts.sort_mode, opts.clips_dir)
     write_rows(work_dir / "selection.csv", SELECTION_COLUMNS, rows)
     kept = [r for r in rows if r["status"] == "kept"]
     if not kept:
-        raise ValueError(f"no clips selected (min_waves {opts.min_waves})")
+        raise ValueError(tr("merge_none_selected", clips=len(rows), min_waves=opts.min_waves))
 
     dur_s = {r["name"]: int(r["duration_ms"]) / 1000.0 for r in kept}
     total_s = sum(dur_s.values())
     meter = ProgressMeter(total_s, on_progress) if on_progress else None
     if on_log is not None:
-        order = ", ".join(r["name"] for r in kept[:6])
-        on_log(f"selected {len(kept)} of {len(rows)} clips "
-               f"(min_waves {opts.min_waves}, sort {opts.sort_mode}): {order}"
-               + (" ..." if len(kept) > 6 else ""))
+        names = ", ".join(r["name"] for r in kept[:6])
+        on_log(tr("merge_selected", kept=len(kept), rows=len(rows),
+                  min_waves=opts.min_waves, sort=tr(SORT_LABEL_KEYS[opts.sort_mode]),
+                  names=names + (" ..." if len(kept) > 6 else "")))
 
     # the clips are measured as they are: `concat -c copy` needs identical codec
     # parameters, and the only way to fix a clip that differs is to re-cut it in stage 1
@@ -192,9 +204,8 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
         for line in problems[:12]:
             if on_log is not None:
                 on_log(line)
-        raise ValueError(f"{len(problems)} clips do not match the target format — clips "
-                        f"are normalized at the scene cut, re-cut them in stage 1: "
-                        f"{'; '.join(problems[:4])}")
+        raise ValueError(tr("merge_format", count=len(problems),
+                            list="; ".join(problems[:4])))
 
     clip_paths = [Path(r["clip"]) for r in kept]
     target = opts.out_dir / (opts.name + ".mp4")
@@ -203,8 +214,7 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
             with open(target, "ab"):
                 pass
         except PermissionError:
-            raise ValueError(f"{target} is locked by another process (player): close it "
-                             "and run again")
+            raise ValueError(tr("merge_locked", path=target))
 
     concat_hook = (lambda sec: meter.set("concat", CONCAT_WEIGHT * min(sec, total_s))
                    if meter is not None else None)
@@ -244,17 +254,22 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
 
     fails = 0
     for ok, line in results:
-        if on_log is not None:
-            on_log(("PASS  " if ok else "FAIL  ") + line)
         fails += 0 if ok else 1
+        # a passing check is noise in the console of a person who does not read the
+        # pipeline: the summary counts them, only a failure names what is wrong
+        if not ok and on_log is not None:
+            on_log(tr("check_fail_line", line=line))
+    if on_log is not None:
+        on_log(tr("check_summary", passed=len(results) - fails, total=len(results)))
     if meter is not None:
         meter.finish()
     elapsed = time.time() - t0
     if on_log is not None:
-        on_log(f"{opts.name}: {len(merged)} ticks, {final_ms} ms, "
-               f"{len(merged) / (final_ms / 1000):.2f} ticks/s, waves "
-               f"{payload['metadata']['waves']} ({payload['metadata']['wave_rate']} waves/s), "
-               f"{elapsed:.0f} s -> {target}")
+        on_log(tr("merge_summary", name=opts.name, ticks=len(merged), final_ms=final_ms,
+                  rate=f"{len(merged) / (final_ms / 1000):.2f}",
+                  waves=payload["metadata"]["waves"],
+                  wave_rate=payload["metadata"]["wave_rate"],
+                  elapsed=f"{elapsed:.0f}", out=target))
     return {"clips": len(clips), "sidecars": len(sidecars), "selected": len(kept),
             "checked": len(kept), "final_ms": final_ms, "ticks": len(merged),
             "waves": payload["metadata"]["waves"], "fails": fails,

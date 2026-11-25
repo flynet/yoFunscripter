@@ -21,6 +21,7 @@ from .funscript_signal import signal_artifacts
 from .funscript_track import track_clip
 from .paths import layout, model_path
 from .progress import ProgressMeter
+from yofunscripter.i18n import tr
 
 SUMMARY_COLUMNS = ("clip", "sidecar", "format", "status", "ticks", "duration_ms",
                    "tracks", "chosen_track", "chosen_class", "segment_start", "segment_end",
@@ -96,11 +97,11 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
     """
     clips = list_clips(opts)
     if not clips:
-        raise ValueError(f"no clips in {opts.source} ({opts.pattern})")
+        raise ValueError(tr("no_clips", dir=opts.source, pattern=opts.pattern))
 
     weights = Path(opts.weights) if opts.weights else model_path(cfg)
     if not weights.is_file():
-        raise ValueError(f"model {weights} not found")
+        raise ValueError(tr("model_missing", path=weights))
 
     frames_of = {c: video_fps_frames(c)[1] for c in clips}
     total_frames = sum(frames_of.values())
@@ -110,8 +111,8 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
     todo = [c for c in clips if opts.force or not sidecar_current(c, opts.scripts_dir)]
     opts.scripts_dir.mkdir(parents=True, exist_ok=True)
     if on_log is not None:
-        on_log(f"clips {len(clips)}, to generate {len(todo)}, weights "
-               f"{weights.name} sha1 {model_version}")
+        on_log(tr("stage2_start", clips=len(clips), todo=len(todo),
+                  name=weights.name, version=model_version))
 
     device = _device(opts.device, on_log)
     model, device = load_model(weights, device)
@@ -132,7 +133,7 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
             meter.set(str(clip), frames_of[clip]) if meter else None
             rows.append(_skip_row(clip, sidecar, model_version))
             if on_log is not None:
-                on_log(f"[{i}/{len(clips)}] {clip.name}: skip (sidecar current)")
+                on_log(tr("stage2_skip", i=i, total=len(clips), name=clip.name))
             continue
         t0 = time.time()
         try:
@@ -161,9 +162,9 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
             if meter is not None:
                 meter.set(str(clip), frames_of[clip])
             if on_log is not None:
-                on_log(f"[{i}/{len(clips)}] {clip.name}: ticks {row['ticks']}, track "
-                       f"{row['chosen_track']} ({row['chosen_class']}), "
-                       f"{row['elapsed_s']} s" + (f" -> {row['reason']}" if row["reason"] else ""))
+                on_log(tr("stage2_clip", i=i, total=len(clips), name=clip.name,
+                          ticks=row["ticks"], elapsed=row["elapsed_s"],
+                          reason=" → " + row["reason"] if row["reason"] else ""))
         except Cancelled:
             # the user stopped the run: this clip is not written, and the stage unwinds
             raise
@@ -173,8 +174,8 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
             if meter is not None:
                 meter.set(str(clip), frames_of[clip])
             if on_log is not None:
-                on_log(f"[{i}/{len(clips)}] {clip.name}: ERROR "
-                       f"{type(exc).__name__}: {exc}")
+                on_log(tr("stage2_error", i=i, total=len(clips), name=clip.name,
+                          reason=f"{type(exc).__name__}: {exc}"))
 
     if meter is not None:
         meter.finish()
@@ -190,8 +191,9 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
                "scripts_dir": str(opts.scripts_dir),
                "report": str(layout().work_dir / "funscript" / "summary.csv")}
     if on_log is not None:
-        on_log(f"clips {len(rows)}: written {done}, empty {empty}, skipped {skipped}, "
-               f"errors {errors}, {elapsed:.0f} s -> {opts.scripts_dir}")
+        on_log(tr("stage2_summary", clips=len(rows), done=done, empty=empty,
+                  skipped=skipped, errors=errors, elapsed=f"{elapsed:.0f}",
+                  out=opts.scripts_dir))
     return summary
 
 
@@ -210,7 +212,7 @@ def _device(name: str, on_log=None):
         return "cpu"
     if not torch.cuda.is_available():
         if on_log is not None:
-            on_log("CUDA в этой сборке недоступна (torch без CUDA) → генерация на CPU")
+            on_log(tr("cuda_missing"))
         return "cpu"
     return 0
 

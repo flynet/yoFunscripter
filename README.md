@@ -2,11 +2,15 @@
 
 Windows desktop app for three jobs on a folder of videos:
 
-1. **Cut scenes** — split videos into scene clips with PySceneDetect + FFmpeg. Every clip
-   is normalized at the cut: one fps, one size, one audio format.
-2. **Generate funscripts** — YOLO tracking on the clips, one `.funscript` sidecar per clip.
-3. **Merge** — pick clips by wave count, concatenate them in place (`-c copy`, no
-   re-encoding, no copies) into one video and one funscript.
+1. **Cut scenes** — split videos into scene clips. Every clip is written in one format
+   (fps, size, audio), so the clips can be merged without re-encoding.
+2. **Generate funscripts** — the movement track of every clip is computed, one `.funscript`
+   file per clip, named like the clip.
+3. **Merge** — pick clips by waves, join them in place (no re-encoding, no copies) into one
+   video and one `.funscript`.
+
+Every setting of the window has a tooltip that says what it does in plain words, and every
+run has **Start** and **Cancel**.
 
 ## Requirements
 
@@ -21,8 +25,8 @@ every stage are subfolders of the install folder:
 
 ```
 scenes\   cut clips of stage 1
-scripts\  .funscript sidecars of stage 2
-result\   merged video + merged funscript
+scripts\  .funscript files of stage 2
+result\   merged video + merged .funscript
 work\     intermediates; safe to delete
 ```
 
@@ -31,23 +35,28 @@ SHA-256 and runs it silently.
 
 ## Use
 
-**Settings** — language (EN/RU), colour scheme, threads, device (`auto` / `cpu` / `cuda`),
-model file, and Save / Revert / Restart. Settings are written to
-`%APPDATA%\YoFunscripter\settings.json` on Save.
+**Settings** — language (English default, Russian), colour scheme (neon default), jobs,
+threads, device (`auto` / `cpu` / `cuda`), model file. They are applied by **Save**
+(written to `%APPDATA%\YoFunscripter\settings.json`); **Revert** takes the saved values
+back, **Restart** restarts the app so the language and the scheme are applied.
 
-**Cut scenes** — source folder (required), output folder (default `scenes`), file pattern,
-parallel jobs, Start.
+**Cut scenes** — source folder (pick it), output folder (default `scenes`), file pattern,
+jobs, Start.
 
-**Generate funscripts** — clips folder (default `scenes`), scripts folder (default
-`scripts`). A sidecar newer than its clip is reused.
+**Generate funscripts** — clips folder (default `scenes`), `.funscript` folder (default
+`scripts`). A `.funscript` newer than its clip is reused; a clip that was cut again needs
+the track recomputed.
 
-**Merge** — clips folder, scripts folder, output folder (default `result`), result name.
-Order: tick rate (default), waves ascending/descending, folder order, random.
-`min_waves` (default 3, `0` = no filter). The clips are read as they are: a clip that
-does not match the target format is an error, it is fixed by cutting the scenes again.
+**Merge** — clips folder, `.funscript` folder, output folder (default `result`), result
+name. Order: ticks per second (default), waves ascending/descending, file names, random.
+Minimum waves (default 3, `0` = no filter). A `.funscript` older than its clip is not
+used: the merge says how many files are missing and how many are old, and stage 2 fixes
+them. Clips must be cut in one format: a clip that does not match is an error, fixed by
+cutting the scenes again.
 
 Every run has **Start** and **Cancel**: Cancel stops the run at once (the ffmpeg child is
-killed, the bar stops, the window is unlocked).
+killed, the bar stops, the window is unlocked). The bar counts real units (seconds of
+source video, frames, seconds of the merged movie).
 
 `cuda` works in the CUDA build (`build.ps1 -Cuda`); in the CPU build stage 2 runs on the
 CPU.
@@ -79,8 +88,13 @@ CPU torch wheels back over the cu126 ones.
 
 ```powershell
 .venv\Scripts\python.exe tools\make_screenshots.py
+.venv\Scripts\python.exe tools\smoke_window.py
 .venv\Scripts\python.exe tools\make_icon.py
 ```
+
+`smoke_window.py` renders the window offscreen and checks the defaults, the tooltips of
+every control, the minimum sizes of the rows, the order combo and its per-order
+tooltip, and that no console text uses the words of the code.
 
 ## Tests
 
@@ -88,9 +102,10 @@ CPU torch wheels back over the cu126 ones.
 uv run pytest
 ```
 
-The tests cover the Qt-free parts: updater, settings, i18n catalogs, progress meter, cut
-graph, merge selection and clip checks, cancel. The pipelines need real video and a model,
-so they are tested by running the app.
+The tests cover the Qt-free parts: updater, settings, i18n catalogs (both languages,
+placeholders, no code words), the `.funscript` pairing rule (paired by name, fresh or
+rejected), progress meter, cut graph, merge selection and clip checks, cancel. The
+pipelines need real video and a model, so they are tested by running the app.
 
 ## License
 

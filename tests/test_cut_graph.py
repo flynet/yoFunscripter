@@ -118,5 +118,7 @@ def test_nvenc_only_up_to_the_session_limit():
     codec, reason = sd.pick_vcodec(c, limit)
     assert (codec, reason) == ("h264_nvenc", "")
     codec, reason = sd.pick_vcodec(c, limit + 1)
-    assert codec == "libx264" and "лимит сессий" in reason
+    assert codec == "libx264"
+    # the note is in the language of the window: both texts name the numbers
+    assert str(limit + 1) in reason and str(limit) in reason
     assert sd.pick_vcodec({**c, "vcodec": "libx264"}, 1) == ("libx264", "")

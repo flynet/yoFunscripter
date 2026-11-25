@@ -16,7 +16,8 @@ sys.path.insert(0, str(REPO / "src"))
 from PySide6.QtWidgets import QApplication
 
 from yofunscripter.config.settings import Settings
-from yofunscripter.i18n import set_language
+from yofunscripter.i18n import set_language, tr
+from yofunscripter.pipeline.funscript_select import SORT_TICK_RATE
 from yofunscripter.ui.main_window import MainWindow
 from yofunscripter.ui.theme import apply_theme
 
@@ -55,10 +56,15 @@ def main() -> None:
     })
     win.progress.start("Cut scenes", "unit_seconds")
     win.progress.update(7200, 12000)
-    for line in ("[1/40] sexy-01.mp4: cut scenes 5 files 5 detect 4.2 s cut 11.9 s",
-                 "[2/40] sexy-02.mp4: single scenes 1 files 0 detect 3.1 s cut  s "
-                 "scenes 1 < min_scenes 2",
-                 "[3/40] sexy-03.mp4: cut scenes 9 files 9 detect 6.0 s cut 18.4 s"):
+    for line in (tr("stage1_video", done=1, total=40, name="sexy-01.mp4",
+                    status=tr("status_cut"), scenes=5, files=5, detect="4.2",
+                    cut="11.9", reason=""),
+                  tr("stage1_video", done=2, total=40, name="sexy-02.mp4",
+                     status=tr("status_single"), scenes=1, files=0, detect="3.1",
+                     cut="", reason=""),
+                  tr("stage1_video", done=3, total=40, name="sexy-03.mp4",
+                     status=tr("status_cut"), scenes=9, files=9, detect="6.0",
+                     cut="18.4", reason="")):
         win.log(line)
     shot(win, out_dir / "main-en.png")
 

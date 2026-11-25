@@ -85,6 +85,7 @@ from .cancel import CancelToken
 from .progress import run_ffmpeg_progress
 from .paths import layout
 from .no_window import run as bg_run
+from yofunscripter.i18n import tr
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -410,7 +411,7 @@ def pick_vcodec(cfg: dict, scenes: int) -> tuple[str, str]:
         return "libx264", ""
     limit = int(cfg["nvenc_max_outputs"])
     if scenes > limit:
-        return "libx264", f"NVENC: сцен {scenes} > лимит сессий {limit} -> libx264"
+        return "libx264", tr("nvenc_limit", scenes=scenes, limit=limit)
     return "h264_nvenc", ""
 
 
@@ -527,7 +528,7 @@ def run_cut(cfg: dict, video: Path, rows: list[dict], out_paths: list[Path],
         rc, text = run_ffmpeg_progress(
             cut_cmd(cfg, video, rows, out_paths, graph_file, with_audio, fps, "libx264"),
             progress_file, on_seconds, token)
-        reason = f"NVENC не открыл энкодер ({text[:120]}) -> рез на libx264"
+        reason = tr("nvenc_fail", text=text[:120])
     graph_file.unlink(missing_ok=True)
     return rc, text, reason
 

@@ -31,15 +31,25 @@ State of the project, in the order of what is left.
   children and stops the stage at the loop boundaries (video, clip, progress hook); the
   detect pass of stage 1 decodes in-process (PySceneDetect), so it is not interruptible —
   the stage stops right after it.
-- 76 unit tests pass (0.7 s, no ffmpeg, no torch): settings (atomic save, backup,
-  clamping), the updater (release parsing, version compare, SHA-256, resume of a partial
-  download, `Cancelled` out of the download loop with the bytes on disk kept), the language
-  catalogues (same keys, same placeholders), the progress meter,
+- 81 unit tests pass (0.7 s, no ffmpeg, no torch): settings (atomic save, backup,
+  clamping, the default theme `neon`), the updater (release parsing, version compare,
+  SHA-256, resume of a partial download, `Cancelled` out of the download loop with the
+  bytes on disk kept), the language catalogues (same keys, same placeholders, no code words
+  in the interface texts, every `tr("key")` of the source present in both languages), the
+  `.funscript` pairing rule (paired by name, missing counted, an older file rejected and
+  named with the stage that fixes it), the progress meter,
   the cut graph (one split, frame trim, normalization to the target, NVENC session limit,
   one thread per x264 encoder), the merge selection (filters, five order modes,
   reproducible random), the clip rules the merge refuses (`check_concat_inputs`), the
   concat list written in the work dir with the clips read in place, the cancel token
   (kill of live children, `Cancelled` out of the ffmpeg runner), the packaged layout.
+- **The window, checked offscreen** (`tools/smoke_window.py`): the default theme is neon
+  (window palette read `#0e0e1a`), the default language is English, every control has a
+  tooltip (66 in the window), the folder fields keep `minWidth 220` and the labels the
+  floor of their text, the minimum window is `900x1142`, the console keeps 60 px, the
+  order combo shows the meaning of the order that is chosen, and no text of the catalogues
+  says `sidecar`, `tick_rate`, `ffmpeg`, `torch`. The console lines of all three stages are
+  in the language of the window.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,

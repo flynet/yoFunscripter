@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, Q
 
 from yofunscripter.config.settings import DEVICES, Settings, THEMES
 from yofunscripter.i18n import LANGUAGE_NAMES, SUPPORTED_LANGUAGES, current_language, tr
+from yofunscripter.ui.widgets import set_row_floor
 
 #: Names of the device in the language of the window, `auto` first.
 DEVICE_KEYS = {"auto": "device_auto", "cpu": "device_cpu", "cuda": "device_cuda"}
@@ -44,6 +45,7 @@ class SettingsPanel(QWidget):
         for code in SUPPORTED_LANGUAGES:
             self.language.addItem(LANGUAGE_NAMES[code], code)
         self.language.setCurrentIndex(max(0, SUPPORTED_LANGUAGES.index(settings.language)))
+        self.language.setToolTip(tr("language_tip"))
         grid.addWidget(QLabel(tr("language")), row, 0)
         grid.addWidget(self.language, row, 1)
         row += 1
@@ -52,6 +54,7 @@ class SettingsPanel(QWidget):
         for name in THEMES:
             self.theme.addItem(tr(THEME_KEYS[name]), name)
         self.theme.setCurrentIndex(max(0, THEMES.index(settings.theme)))
+        self.theme.setToolTip(tr("theme_tip"))
         grid.addWidget(QLabel(tr("theme")), row, 0)
         grid.addWidget(self.theme, row, 1)
         row += 1
@@ -59,6 +62,7 @@ class SettingsPanel(QWidget):
         self.jobs = QSpinBox()
         self.jobs.setRange(1, 16)
         self.jobs.setValue(settings.jobs)
+        self.jobs.setToolTip(tr("jobs_tip"))
         grid.addWidget(QLabel(tr("jobs")), row, 0)
         grid.addWidget(self.jobs, row, 1)
         row += 1
@@ -66,6 +70,7 @@ class SettingsPanel(QWidget):
         self.threads = QSpinBox()
         self.threads.setRange(1, 64)
         self.threads.setValue(settings.threads)
+        self.threads.setToolTip(tr("threads_tip"))
         grid.addWidget(QLabel(tr("threads")), row, 0)
         grid.addWidget(self.threads, row, 1)
         row += 1
@@ -74,31 +79,38 @@ class SettingsPanel(QWidget):
         for name in DEVICES:
             self.device.addItem(tr(DEVICE_KEYS[name]), name)
         self.device.setCurrentIndex(max(0, DEVICES.index(settings.device)))
+        self.device.setToolTip(tr("device_tip"))
         grid.addWidget(QLabel(tr("device")), row, 0)
         grid.addWidget(self.device, row, 1)
         row += 1
 
         self.model = QLineEdit(settings.model_path)
         self.model.setPlaceholderText(tr("model_default", path=default_model))
+        self.model.setToolTip(tr("model_tip"))
+        self.model.textChanged.connect(self._show_model)
         grid.addWidget(QLabel(tr("model")), row, 0)
         grid.addWidget(self.model, row, 1)
         self.browse_model = QPushButton(tr("browse"))
         self.browse_model.setObjectName("browse")
+        self.browse_model.setToolTip(tr("browse_tip"))
         grid.addWidget(self.browse_model, row, 2)
         row += 1
 
         self.reset_model = QPushButton(tr("model_reset"))
         self.reset_model.setObjectName("browse")
+        self.reset_model.setToolTip(tr("model_tip"))
         grid.addWidget(self.reset_model, row, 1)
         row += 1
 
         self.force = QCheckBox(tr("force"))
         self.force.setChecked(settings.force)
+        self.force.setToolTip(tr("force_tip"))
         grid.addWidget(self.force, row, 0, 1, 3)
         row += 1
 
         self.no_check = QCheckBox(tr("no_check"))
         self.no_check.setChecked(settings.no_check)
+        self.no_check.setToolTip(tr("no_check_tip"))
         grid.addWidget(self.no_check, row, 0, 1, 3)
         row += 1
 
@@ -110,11 +122,14 @@ class SettingsPanel(QWidget):
         buttons = QHBoxLayout()
         self.revert_button = QPushButton(tr("settings_revert"))
         self.revert_button.setObjectName("browse")
+        self.revert_button.setToolTip(tr("settings_revert_tip"))
         self.revert_button.clicked.connect(self._revert)
         self.restart_button = QPushButton(tr("settings_restart"))
         self.restart_button.setObjectName("browse")
+        self.restart_button.setToolTip(tr("settings_restart_tip"))
         self.restart_button.clicked.connect(self.restart_requested.emit)
         self.save_button = QPushButton(tr("settings_save"))
+        self.save_button.setToolTip(tr("settings_save_tip"))
         self.save_button.setDefault(True)
         self.save_button.clicked.connect(self.save_requested.emit)
         buttons.addWidget(self.revert_button)
@@ -123,10 +138,16 @@ class SettingsPanel(QWidget):
         buttons.addWidget(self.save_button)
         layout.addLayout(buttons)
         layout.addStretch(1)
+        set_row_floor(layout)
 
         # the restart is useful only when the chosen language is not the running one
         self.language.currentIndexChanged.connect(self._refresh_restart)
         self._refresh_restart()
+
+    def _show_model(self, text: str) -> None:
+        """The tooltip of the model field: the path the user typed, the hint when the
+        field is empty and the bundled model is the default."""
+        self.model.setToolTip(text if text else tr("model_tip"))
 
     def _refresh_restart(self) -> None:
         """«Restart» is enabled when the chosen language is not the running language."""

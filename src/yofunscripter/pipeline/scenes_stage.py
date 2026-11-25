@@ -22,9 +22,14 @@ from .cancel import Cancelled, CancelToken
 from .paths import layout
 from .progress import ProgressMeter
 from .no_window import run as bg_run
+from yofunscripter.i18n import tr
 
 DETECT_WEIGHT = 0.15
 CUT_WEIGHT = 0.85
+
+#: The console words for a status: a person reads «cut»/«нарезан», not the code token.
+STATUS_KEYS = {sd.ST_CUT: "status_cut", sd.ST_SINGLE: "status_single",
+               sd.ST_SKIP: "status_skip", sd.ST_ERROR: "status_error"}
 
 VIDEO_EXTS = (".mp4", ".mov", ".mkv", ".avi", ".webm")
 
@@ -59,9 +64,9 @@ def cut_vcodec(cfg: dict, device: str) -> tuple[str, str]:
     """
     if str(device).strip().lower() == "cuda":
         cfg["vcodec"] = "h264_nvenc"
-        return "h264_nvenc", "рез на NVENC (GPU)"
+        return "h264_nvenc", tr("cut_gpu")
     cfg["vcodec"] = "libx264"
-    return "libx264", "рез на CPU (libx264)"
+    return "libx264", tr("cut_cpu")
 
 
 def duration_s(cfg: dict, video: Path) -> float:
@@ -103,22 +108,23 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
     """Cut all videos of `opts.source` into `opts.out_dir`; returns the run summary.
 
     `on_progress(done_units, total_units)` — units are seconds of source video.
-    `on_log(line)` — one line per video, same text as the CLI print.
+    `on_log(line)` — one line per video, in the language of the window.
     `token` — the user's Cancel: the ffmpeg of each video is registered in it, and
     `Cancelled` leaves the stage at the next loop boundary, so nothing is written after
     the stop.
     """
     videos = list_videos(opts)
     if not videos:
-        raise ValueError(f"no videos in {opts.source} ({opts.pattern})")
+        raise ValueError(tr("no_videos", dir=opts.source, pattern=opts.pattern))
 
     by_stem: dict[str, list[Path]] = {}
     for v in videos:
         by_stem.setdefault(v.stem, []).append(v)
     dupes = {k: v for k, v in by_stem.items() if len(v) > 1}
     if dupes:
-        raise ValueError("name collisions in " + str(opts.out_dir) + ": "
-                        + "; ".join(f"{k} -> {[str(q) for q in v]}" for k, v in dupes.items()))
+        raise ValueError(tr("stage1_collisions", count=len(dupes), dir=opts.out_dir,
+                           list="; ".join(f"{k} -> {[str(q) for q in v]}"
+                                          for k, v in dupes.items())))
 
     scenes_dir = layout().work_dir / "scenes"
     stats_dir = layout().work_dir / "scenes" / "runs"
@@ -179,10 +185,11 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
             rows.append(row)
             done += 1
             if on_log is not None:
-                on_log(f"[{done}/{len(videos)}] {v.name}: {row['status']} scenes "
-                       f"{row['scenes']} files {row['out_files']} "
-                       f"detect {row['detect_s']} s cut {row['cut_s']} s"
-                       + (f" {row['reason']}" if row["reason"] else ""))
+                on_log(tr("stage1_video", done=done, total=len(videos), name=v.name,
+                          status=tr(STATUS_KEYS.get(row["status"], row["status"])),
+                          scenes=row["scenes"], files=row["out_files"],
+                          detect=row["detect_s"], cut=row["cut_s"],
+                          reason=" " + row["reason"] if row["reason"] else ""))
 
     if cancelled:
         if meter is not None:
@@ -206,6 +213,7 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
                "errors": errors, "files": files, "elapsed_s": round(elapsed, 1),
                "out_dir": str(opts.out_dir), "report": str(stats_path)}
     if on_log is not None:
-        on_log(f"videos {len(rows)}: cut {cut}, single scene {single}, skipped {skipped}, "
-               f"errors {errors}, files {files}, {elapsed:.0f} s -> {opts.out_dir}")
+        on_log(tr("stage1_summary", videos=len(rows), cut=cut, single=single,
+                  skipped=skipped, errors=errors, files=files,
+                  elapsed=f"{elapsed:.0f}", out=opts.out_dir))
     return summary

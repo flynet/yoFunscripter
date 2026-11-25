@@ -14,7 +14,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QFrame, QProgressBar, QVBoxLayout, QLabel, QWidget
 
 from yofunscripter.i18n import tr
-from yofunscripter.ui.widgets import fmt_time, fmt_units
+from yofunscripter.ui.widgets import fmt_time, fmt_units, set_row_floor
 
 
 class ProgressPanel(QFrame):
@@ -31,6 +31,11 @@ class ProgressPanel(QFrame):
         self.label = QLabel(tr("progress_idle"))
         self.label.setObjectName("progressLabel")
         layout.addWidget(self.label)
+        tip = tr("progress_tip")
+        self.setToolTip(tip)
+        self.bar.setToolTip(tip)
+        self.label.setToolTip(tip)
+        set_row_floor(layout)
         self.stage = ""
         self.unit_key = "unit_seconds"
         self.total = 0

@@ -5,7 +5,7 @@ English and Russian. The language comes from the settings and is applied once at
 startup: the text of a widget is written when the widget is built, so changing the
 language needs a restart.
 
-`tr("stage_scenes_title")` returns the text in the current language; the placeholders of
+`tr("stage_scenes")` returns the text in the current language; the placeholders of
 a template are filled with the keyword arguments: `tr("eta", eta="1:20", elapsed="0:31")`.
 """
 
