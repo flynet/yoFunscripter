@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from yofunscripter.pipeline.cancel import Cancelled, CancelToken
 from yofunscripter.update import checker
 
 
@@ -205,3 +206,42 @@ def test_parse_release_keeps_the_api_url():
     payload["assets"][0]["url"] = "https://api.github.com/repos/x/y/releases/assets/7"
     release = checker.parse_release(payload)
     assert release.installer.api_url.endswith("/assets/7")
+
+
+def test_download_stops_on_a_cancelled_token(tmp_path, monkeypatch):
+    """The user presses «Cancel» in the middle of the file: `Cancelled` leaves the loop
+    and the bytes already on disk are kept for the next run."""
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    token = CancelToken()
+    seen = []
+
+    def on_chunk(written, total):
+        seen.append((written, total))
+        token.cancel()
+
+    def fake_stream(method, url, **kwargs):
+        return _Response(headers={"content-range": "bytes 0-5/6"}, chunks=(b"abc", b"def"))
+
+    monkeypatch.setattr(checker.httpx, "stream", fake_stream)
+    asset = checker.Asset("setup.exe", "https://example.test/setup.exe", 6)
+    target = tmp_path / "setup.exe"
+    with pytest.raises(Cancelled):
+        checker.download_installer(asset, target, on_chunk, token)
+    assert target.read_bytes() == b"abc"
+    assert seen == [(3, 6)]
+
+
+def test_cancelled_token_stops_before_the_first_byte(tmp_path, monkeypatch):
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    token = CancelToken()
+    token.cancel()
+
+    def fake_stream(method, url, **kwargs):
+        return _Response(headers={"content-range": "bytes 0-5/6"}, chunks=(b"abc",))
+
+    monkeypatch.setattr(checker.httpx, "stream", fake_stream)
+    asset = checker.Asset("setup.exe", "https://example.test/setup.exe", 6)
+    target = tmp_path / "setup.exe"
+    with pytest.raises(Cancelled):
+        checker.download_installer(asset, target, token=token)
+    assert target.stat().st_size == 0

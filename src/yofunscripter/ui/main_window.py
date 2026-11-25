@@ -288,3 +288,8 @@ class MainWindow(QMainWindow):
         self.status.setText(tr("new_version", version=release.version, date=release.date))
         dialog = UpdateDialog(release, app_data_root() / "updates", self)
         dialog.exec()
+        if dialog.path is not None:
+            # The installer was started: this copy of the program must leave, the installer
+            # closes it and launches the new version at its end.
+            QApplication.closeAllWindows()
+            QApplication.quit()

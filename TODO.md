@@ -31,9 +31,10 @@ State of the project, in the order of what is left.
   children and stops the stage at the loop boundaries (video, clip, progress hook); the
   detect pass of stage 1 decodes in-process (PySceneDetect), so it is not interruptible —
   the stage stops right after it.
-- 74 unit tests pass (0.6 s, no ffmpeg, no torch): settings (atomic save, backup,
+- 76 unit tests pass (0.7 s, no ffmpeg, no torch): settings (atomic save, backup,
   clamping), the updater (release parsing, version compare, SHA-256, resume of a partial
-  download), the language catalogues (same keys, same placeholders), the progress meter,
+  download, `Cancelled` out of the download loop with the bytes on disk kept), the language
+  catalogues (same keys, same placeholders), the progress meter,
   the cut graph (one split, frame trim, normalization to the target, NVENC session limit,
   one thread per x264 encoder), the merge selection (filters, five order modes,
   reproducible random), the clip rules the merge refuses (`check_concat_inputs`), the
@@ -120,11 +121,20 @@ State of the project, in the order of what is left.
     (`tools/update_fixture.py`) to test the chain end to end without any network. The flow
     inside the window is measured with the fixture as 1.0.3 against the app of 1.0.2: the
     status line becomes `A new release 1.0.3 is available (2026-11-25)`, the window opens
-    the dialog itself, the Download button is enabled and Install is not, the real download
-    thread writes 3145728 bytes with the bar at 100, the SHA-256 of the downloaded file
-    equals the published one, Install becomes enabled and Download is disabled, and the file
-    lands in the app data (`<app data>/yoFunscripter/updates/`), not in a user folder. The
-    Install button is never pressed: the fixture file is not an installer.
+    the dialog itself, the real download thread writes 3145728 bytes with the bar at 100,
+    the SHA-256 of the downloaded file equals the published one, and the file lands in the
+    app data (`<app data>/yoFunscripter/updates/`), not in a user folder. The installer of
+    the fixture is never launched: the fixture file is not an installer.
+  - **The dialog has two buttons, «Обновить» and «Закрыть»** (measured offscreen with
+    `smoke_update103.py` and a stubbed download): «Обновить» starts the download and, when
+    the file lands and the digest matches, starts the installer and the program leaves.
+    While the file comes, the same button reads «Отмена» (the red `QPushButton#danger`
+    style of the stage cards), «Закрыть» is disabled, the bar and the `N / M MB` line follow
+    the real bytes; pressing it stops the download at the next megabyte, the bytes already
+    on disk stay, and the next «Обновить» continues from that byte. «Закрыть» during the
+    download stops it and the window leaves when the thread ends. The texts in English read
+    `Update` and `Close`. Pressing the button of a window that is not running starts the
+    download again.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
 - **The CUDA build and release 1.0.2.** `https://github.com/flynet/yoFunscripter/releases/tag/v1.0.2`

@@ -254,12 +254,16 @@ def _final_size(headers: Mapping[str, str], done: int, length: int) -> int:
     return done + length
 
 
-def download_installer(asset: Asset, target: Path, on_chunk=None) -> Path:
+def download_installer(asset: Asset, target: Path, on_chunk=None, token=None) -> Path:
     """Save the installer to `target`; `on_chunk(written, total)` reports the bytes.
 
     A connection that breaks is tried again from the byte the file reached. Every network
     failure is turned into `UpdateError`, so the console names the reason instead of
     leaving the program to hang with a moving bar and no word about the update.
+
+    `token` is the cancel token of the download: the bytes already on disk are kept, so
+    the next run continues from the same byte, and `Cancelled` leaves the loop at the
+    next megabyte, not at the end of the file.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     url = download_url(asset)
@@ -283,6 +287,8 @@ def download_installer(asset: Asset, target: Path, on_chunk=None) -> Path:
                 written = done
                 with target.open("ab") as handle:
                     for chunk in response.iter_bytes(1024 * 1024):
+                        if token is not None:
+                            token.check()
                         handle.write(chunk)
                         written += len(chunk)
                         if on_chunk is not None:
