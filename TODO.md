@@ -79,8 +79,10 @@ State of the project, in the order of what is left.
   repository is **private**: the unauthenticated `releases/latest` answers 404 (measured),
   while the same call with the token answers 200, so `fetch_release` of the installed program
   finds nothing. The repository has to be public for the «Check for updates» button to work
-  for anyone, and then `fetch_release`, the download and the silent install must be measured
-  against the real release. The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
+  for anyone. The owner chose to keep the repository private, so the button of the installed
+  program finds nothing by design and the installer is taken from the release page by hand;
+  `fetch_release`, the download and the silent install stay measured only by unit tests.
+  The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
 - **The CUDA build.** `build.ps1 -Cuda` has not been run; the device selector
   `auto`/`cuda` is untested on the machine with the GPU.

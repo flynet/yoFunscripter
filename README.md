@@ -42,7 +42,9 @@ work\     intermediates (scene lists, segment cache, reports); safe to delete
 ```
 
 The **Check for updates** button reads the latest GitHub release and downloads and runs
-its installer.
+its installer. The read is unauthenticated, so it works when the release is public; for a
+private repository GitHub answers 404 and the app says there is no release, and the installer
+has to be taken from the release page by hand.
 
 ## Use
 
