@@ -18,6 +18,9 @@ work/
 # Tools downloaded by tools\fetch_ffmpeg.ps1
 tools/ffmpeg/
 
+# Window screenshots rendered by tools\make_screenshots.py for local viewing
+assets/screenshots/
+
 # OS / editor
 Thumbs.db
 .DS_Store

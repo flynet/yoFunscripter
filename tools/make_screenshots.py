@@ -1,11 +1,11 @@
-"""README screenshots: the window is rendered offscreen and saved as PNG.
+"""Window screenshots: the window is rendered offscreen and saved as PNG.
 
     python tools/make_screenshots.py
 
 The window is built by the same code the app runs, so the screenshots cannot drift away
 from the real UI: the same cards, the same progress panel, the same settings page. The
 folders and the progress numbers are example values, so the screenshot shows a run in
-progress, not an empty window.
+progress, not an empty window. The PNGs are for local viewing and are not tracked in git.
 """
 import sys
 from pathlib import Path

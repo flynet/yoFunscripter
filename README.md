@@ -12,15 +12,11 @@ The scene detector and the funscript pipeline are the same algorithms and thresh
 the reference YOLO project; the app only adds the window, folder selection, real
 progress (percent, ETA, elapsed) and the log.
 
-![main window](assets/screenshots/main-en.png)
-
 The settings page (Russian, the «Cartoons» scheme): language, color scheme, threads of
 each stage, device for YOLO, the model file, and the two run options. «Сохранить» / «Save»
 writes the settings at once, «Сбросить» / «Revert» returns the form to the saved values,
 «Перезапустить» / «Restart» starts the program again so the new language is applied
 (the colour scheme is applied without a restart).
-
-![settings](assets/screenshots/settings-ru.png)
 
 ## Requirements
 
@@ -96,7 +92,8 @@ uv run pyinstaller --clean --noconfirm tools\selftest.spec
 dist\selftest\selftest.exe
 ```
 
-The README screenshots are rendered by the app's own window code (offscreen, no run):
+Window screenshots are rendered by the app's own window code (offscreen, no run) for local
+viewing; they are not tracked in git:
 
 ```powershell
 .venv\Scripts\python.exe tools\make_screenshots.py

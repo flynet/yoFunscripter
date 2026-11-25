@@ -11,6 +11,7 @@ answers a big installer over a slow link in pieces, and a restart from zero neve
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -25,6 +26,11 @@ from yofunscripter.i18n import tr
 
 #: `https://api.github.com/repos/<owner>/<repo>/releases/latest`
 API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
+#: The variable that aims the check at another address. A private repository answers 404
+#: to the app (it has no token), so the updater is pointed at a local test server
+#: (`tools/update_fixture.py`) to try the whole chain: read the release, download the
+#: installer, check the digest, start the installer.
+API_URL_ENV = "YOFUNSCRIPTER_UPDATE_API"
 SHA_SUFFIX = ".sha256"
 INSTALLER_ARGS = ["/SILENT", "/SUPPRESSMSGBOXES", "/CLOSEAPPLICATIONS", "/NORESTART"]
 #: Windows flag: the installer runs detached, no console window is shown.
@@ -126,13 +132,18 @@ def is_newer(current: str, latest: str) -> bool:
     return theirs > mine
 
 
+def api_url() -> str:
+    """Where to read `releases/latest`: the variable's address, else the repository."""
+    return os.environ.get(API_URL_ENV, "").strip() or API_URL
+
+
 def fetch_release(url: str | None = None, timeout: float = API_TIMEOUT) -> Release | None:
     """`GET` the latest release; `None` when there is nothing to show.
 
     Raises `UpdateError` on a network failure, so the caller writes one console line and
     keeps running.
     """
-    target = url or API_URL
+    target = url or api_url()
     try:
         with httpx.Client(follow_redirects=True, timeout=timeout) as client:
             response = client.get(target, headers={"User-Agent": USER_AGENT,

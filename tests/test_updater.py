@@ -53,6 +53,15 @@ def test_versions():
     assert checker.is_newer("1.0.0", "nightly") is False
 
 
+def test_api_url_override(monkeypatch):
+    monkeypatch.delenv(checker.API_URL_ENV, raising=False)
+    assert checker.api_url() == checker.API_URL
+    monkeypatch.setenv(checker.API_URL_ENV, "http://127.0.0.1:8765/release.json")
+    assert checker.api_url() == "http://127.0.0.1:8765/release.json"
+    monkeypatch.setenv(checker.API_URL_ENV, "   ")
+    assert checker.api_url() == checker.API_URL
+
+
 def test_parse_sha():
     assert checker.parse_sha("ABCDEF  file.exe\n") == "abcdef"
     assert checker.parse_sha("  abcdef  ") == "abcdef"
