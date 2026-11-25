@@ -72,6 +72,12 @@ def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
     tail = " | ".join(line.strip() for line in stderr.splitlines() if line.strip())
     if on_seconds is not None:
         on_seconds(read_progress(progress_file) or 0.0)
+    # the file is only a pipe for out_time; the last read is done, so it is not left
+    # in the user's folders (stage 1 writes it next to the clips)
+    try:
+        progress_file.unlink()
+    except OSError:
+        pass
     return proc.returncode, tail[-260:]
 
 

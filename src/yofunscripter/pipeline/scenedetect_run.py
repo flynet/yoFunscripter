@@ -68,6 +68,7 @@ import sys
 import time
 
 from .progress import run_ffmpeg_progress
+from .paths import layout
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -421,7 +422,7 @@ def cut_cmd(cfg: dict, video: Path, row: dict, target: Path, offset: float, fps:
 
 
 def run_cut(cfg: dict, video: Path, rows: list[dict], out_paths: list[Path],
-            scenes_dir: Path, with_audio: bool, fps: float,
+            with_audio: bool, fps: float,
             on_seconds: "callable | None" = None) -> tuple[int, str]:
     """Рез всех сцен видео: по процессу на сцену, прогресс по секундам энкода.
 
@@ -431,8 +432,11 @@ def run_cut(cfg: dict, video: Path, rows: list[dict], out_paths: list[Path],
     """
     offset = first_pts_time(cfg, video)
     done = 0.0
+    # файл прогресса живёт в work/progress, не рядом с клипами: папка выходов
+    # пользователя должна содержать только клипы
+    progress_dir = layout().work_dir / "progress"
     for i, (row, target) in enumerate(zip(rows, out_paths), 1):
-        progress_file = scenes_dir / f"{video.stem}-progress-{i}.txt"
+        progress_file = progress_dir / f"{video.stem}-progress-{i}.txt"
         cmd = cut_cmd(cfg, video, row, target, offset, fps, with_audio)
         # run_ffmpeg_progress вставляет `-progress` перед аргументом выхода сам: после
         # `-o <файл>`/в конце строки ffmpeg файл прогресса не пишет (замер: файла нет)
@@ -541,7 +545,7 @@ def process(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path, a: argparse
     out_paths = [out_dir / out_name(stem, int(r["Scene Number"]), cfg) for r in rows]
     with_audio = bool(cfg["audio"]) and has_audio(cfg, video)
     t1 = time.time()
-    rc, text = run_cut(cfg, video, rows, out_paths, scenes_dir, with_audio, fps, on_cut)
+    rc, text = run_cut(cfg, video, rows, out_paths, with_audio, fps, on_cut)
     row["cut_s"] = round(time.time() - t1, 2)
     out = produced(out_dir, stem)
     row["out_files"] = len(out)

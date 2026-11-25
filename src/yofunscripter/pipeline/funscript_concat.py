@@ -168,6 +168,10 @@ def concat_gc(concat_dir: Path, present: set[str]) -> tuple[list[Path], int]:
     for legacy in concat_dir.glob("concat_list*.txt"):
         legacy.unlink()
         removed.append(legacy)
+    for legacy in concat_dir.glob("*.progress.txt"):
+        # the runner deletes the file of its own run; leftovers of an old run are trash
+        legacy.unlink()
+        removed.append(legacy)
     if removed:
         save_manifest(concat_dir, manifest)
     return removed, freed
@@ -218,13 +222,15 @@ def concat(segments: list[Path], out: Path, cfg: dict,
            on_seconds: "callable | None" = None) -> Path:
     """Сегменты в порядке списка -> один mp4 без перекодирования (PTS считает ffmpeg)."""
     out.parent.mkdir(parents=True, exist_ok=True)
-    lst = out.parent / "concat_list.txt"
+    # список сегментов и файл прогресса — рядом с сегментами (concat_dir), а не в
+    # папке результата: в ней лежат только mp4 и funscript
+    lst = (segments[0].parent if segments else out.parent) / "concat_list.txt"
     lst.write_text("".join(f"file '{p.as_posix()}'\n" for p in segments),
                    encoding="utf-8", newline="\n")
     run_ffmpeg([cfg["ffmpeg_bin"], "-hide_banner", "-loglevel", "error", "-y",
                 "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", str(lst),
                 "-c", "copy", "-movflags", "+faststart", str(out)],
-               cfg, on_seconds, out.with_name(out.stem + ".progress.txt"))
+               cfg, on_seconds, lst.with_name(out.stem + ".progress.txt"))
     return lst
 
 
