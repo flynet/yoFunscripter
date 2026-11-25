@@ -18,8 +18,9 @@ datas: list = []
 binaries: list = []
 hiddenimports: list = []
 
-# the same packages as yofunscripter.spec
-for pkg in ("ultralytics", "scenedetect", "cv2", "numpy", "yaml", "httpx"):
+# the same packages as yofunscripter.spec (torchvision is in the list for its
+# `_C_stable` extension, which the PyInstaller hook does not find by name)
+for pkg in ("ultralytics", "torchvision", "scenedetect", "cv2", "numpy", "yaml", "httpx"):
     extra_data, extra_binaries, extra_imports = collect_all(pkg)
     datas += extra_data
     binaries += extra_binaries

@@ -21,7 +21,12 @@ hiddenimports: list = []
 
 # The pipeline imports these at runtime; the data files of ultralytics (its default
 # `coco128.yaml`, the fonts of the plots) and of scenedetect must travel with the build.
-for pkg in ("ultralytics", "scenedetect", "cv2", "numpy", "yaml", "httpx"):
+# torchvision is collected for its extension: the hook of PyInstaller declares the hidden
+# import `torchvision._C`, and in torchvision 0.29 the extension is `torchvision._C_stable`,
+# so a build without this line carries the .py files of torchvision and none of its
+# `.pyd`/`.dll`, and `import torchvision` dies with
+# `RuntimeError: operator torchvision::nms does not exist`.
+for pkg in ("ultralytics", "torchvision", "scenedetect", "cv2", "numpy", "yaml", "httpx"):
     extra_data, extra_binaries, extra_imports = collect_all(pkg)
     datas += extra_data
     binaries += extra_binaries
