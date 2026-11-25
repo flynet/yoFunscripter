@@ -158,8 +158,9 @@ State of the project, in the order of what is left.
     download stops it and the window leaves when the thread ends. The texts in English read
     `Update` and `Close`. Pressing the button of a window that is not running starts the
     download again.
-  The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
-  not run on GitHub.
+  The CI workflows have run on GitHub: `ci.yml` (Tests) is green on every push, and
+  `release.yml` (Release build) ran on the release event of `v1.0.5` and attached its CPU
+  installer, which is removed after the local CUDA upload.
 - **The CUDA build and release 1.0.2.** `https://github.com/flynet/yoFunscripter/releases/tag/v1.0.2`
   (release id `457813468`) carries `YoFunscripter-Setup-1.0.2.exe` (asset id `790659388`,
   1793830265 bytes, SHA-256
@@ -175,6 +176,17 @@ State of the project, in the order of what is left.
   `0x8` = `DETACHED_PROCESS`, and `Popen` is stubbed so the installer is never launched. The
   installer 1.0.2 has not been installed and run on a machine (the install and the device
   `cuda` in the settings are for the user).
+- **The release 1.0.5.** `https://github.com/flynet/yoFunscripter/releases/tag/v1.0.5`
+  (release id `458342774`, notes `build\release-notes-1.0.5.md`) carries
+  `YoFunscripter-Setup-1.0.5.exe` (asset id `792213419`, 1710.8 MB, SHA-256
+  `ca0a22b34210c1f6fc5f3acf20304b266b1b64dcf86b8dfa9816162fa448653e`) and its `.sha256`
+  (asset id `792225696`). The tag `v1.0.5` is pushed first, `build.ps1 -Cuda` writes
+  `_version.py` from `git describe --tags` and compiles the installer. `Invoke-RestMethod`
+  on the release POST answered 500 and 502, so the release was created by
+  `curl.exe --data-binary @body.json` (201); `publish_release.ps1` itself was broken by
+  comment lines without `#` before `param` (`MissingArgument`) and is fixed. The CI release
+  build attaches its CPU installer with the same name, so the CPU asset is removed after the
+  local upload and the release keeps one setup file.
 - **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv pip
   install` without `--reinstall` printed `Audited 2 packages` and changed nothing (the CPU
   wheels already satisfy the requirement), and `uv run pyinstaller` syncs the project, so it
