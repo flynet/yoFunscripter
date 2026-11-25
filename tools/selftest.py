@@ -25,7 +25,14 @@ from ultralytics import YOLO
 
 model = Path(sys._MEIPASS) / "models" / "best.pt"
 m = YOLO(str(model))
-print("torch", torch.__version__, "cuda available", torch.cuda.is_available())
+print("torch", torch.__version__, "cuda available", torch.cuda.is_available(),
+      "cuda runtime", torch.version.cuda)
+if torch.cuda.is_available():
+    print("device", torch.cuda.get_device_name(0))
+    # one frame of inference on the GPU: the device is real, not just reported
+    frame = __import__("numpy").zeros((360, 640, 3), dtype=__import__("numpy").uint8)
+    r = m(frame, device=0, verbose=False)[0]
+    print("gpu inference ok, detections", len(r.boxes))
 print("cv2", cv2.__version__)
 print("scenedetect", scenedetect.__version__)
 print("numpy", numpy.__version__)
