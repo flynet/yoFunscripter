@@ -105,6 +105,12 @@ State of the project, in the order of what is left.
   each process). The user folders (`scenes`, `scripts`, `result`) get only the outputs.
   The uninstaller deletes `work/`, the user folders are left alone.
 - `run.bat` uses `uv` and `pythonw`; a checkout without uv prints one readable error.
+- **No console window of a child process.** The installed program is a windowed PyInstaller
+  build, and Windows gives a new console window to every console child it starts, so each
+  ffmpeg cut of stage 1 popped a window on the screen. `pipeline/no_window.py` puts
+  `CREATE_NO_WINDOW` on every ffmpeg/ffprobe child (measured with a stub of
+  `subprocess.Popen`: 7 calls, flags `0x8000000` on every one). Any new child of the pipeline
+  must go through `no_window.run` / `no_window.popen`, not through `subprocess` directly.
 - Vendored modules keep their Russian comments; the app-facing text and the
   documentation are English.
 - The name `YoFunscripter-Setup-<version>.exe` is the contract with the updater
