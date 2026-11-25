@@ -1,16 +1,17 @@
 """The three cards of the main tab: Cut scenes, Generate funscripts, Merge.
 
 Each card is the title, the hint of what the stage does, the rows of its folders, the
-options of the stage (waves filter, order of clips, result name) and one Start button.
-The rows keep the paths the user picked; an empty row is the default folder relative to
-the install dir, and the placeholder shows that default.
+options of the stage (waves filter, order of clips, result name), a Start button and a
+Cancel button (enabled only while a run of this card is going). The rows keep the paths
+the user picked; an empty row is the default folder relative to the install dir, and the
+placeholder shows that default.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QLabel, QLineEdit,
+from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                                QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from yofunscripter.i18n import tr
@@ -50,7 +51,13 @@ class StageCard(QFrame):
         if extra is not None:
             layout.addWidget(extra)
         self.start = QPushButton(start_label)
-        layout.addWidget(self.start)
+        self.cancel = QPushButton(tr("cancel"))
+        self.cancel.setObjectName("danger")
+        self.cancel.setEnabled(False)          # the button is for a run that is going
+        buttons = QHBoxLayout()
+        buttons.addWidget(self.start)
+        buttons.addWidget(self.cancel)
+        layout.addLayout(buttons)
         self.rows = rows
         self.extra = extra
 

@@ -2,10 +2,11 @@
 
 Windows desktop app for three jobs on a folder of videos:
 
-1. **Cut scenes** — split videos into scene clips with PySceneDetect + FFmpeg.
+1. **Cut scenes** — split videos into scene clips with PySceneDetect + FFmpeg. Every clip
+   is normalized at the cut: one fps, one size, one audio format.
 2. **Generate funscripts** — YOLO tracking on the clips, one `.funscript` sidecar per clip.
-3. **Merge** — pick clips by wave count, encode them to one format, concatenate into one
-   video and one funscript.
+3. **Merge** — pick clips by wave count, concatenate them in place (`-c copy`, no
+   re-encoding, no copies) into one video and one funscript.
 
 ## Requirements
 
@@ -42,7 +43,11 @@ parallel jobs, Start.
 
 **Merge** — clips folder, scripts folder, output folder (default `result`), result name.
 Order: tick rate (default), waves ascending/descending, folder order, random.
-`min_waves` (default 3, `0` = no filter).
+`min_waves` (default 3, `0` = no filter). The clips are read as they are: a clip that
+does not match the target format is an error, it is fixed by cutting the scenes again.
+
+Every run has **Start** and **Cancel**: Cancel stops the run at once (the ffmpeg child is
+killed, the bar stops, the window is unlocked).
 
 `cuda` works in the CUDA build (`build.ps1 -Cuda`); in the CPU build stage 2 runs on the
 CPU.
@@ -83,8 +88,9 @@ CPU torch wheels back over the cu126 ones.
 uv run pytest
 ```
 
-The tests cover the Qt-free parts: updater, settings, i18n catalogs, progress meter, merge
-selection. The pipelines need real video and a model, so they are tested by running the app.
+The tests cover the Qt-free parts: updater, settings, i18n catalogs, progress meter, cut
+graph, merge selection and clip checks, cancel. The pipelines need real video and a model,
+so they are tested by running the app.
 
 ## License
 

@@ -20,6 +20,7 @@ import json
 import sys
 from pathlib import Path
 
+from .cancel import CancelToken
 from .funscript_common import ROOT, load_config, video_duration_ms
 from .progress import run_ffmpeg_progress
 from .no_window import run as bg_run
@@ -70,18 +71,21 @@ def probe(path: Path, cfg: dict) -> dict:
 
 
 def run_ffmpeg(cmd: list[str], cfg: dict, on_seconds: "callable | None" = None,
-               progress_file: Path | None = None) -> None:
+               progress_file: Path | None = None,
+               token: "CancelToken | None" = None) -> None:
     """Запуск ffmpeg; `on_seconds` — прогресс-хук GUI (флаг `-progress` добавляется в runner).
 
     Команда не меняется: прогресс-файл добавляется перед output, ffmpeg дописывает в него
     out_time. Клиентский прогон (on_seconds=None) идёт ровно той же командой.
+    `token` — Cancel пользователя: процесс регистрируется в токене и terminate'ится при
+    нажатии, и `Cancelled` выходит наружу.
     """
     if on_seconds is None:
         r = bg_run(cmd, capture_output=True, text=True, encoding="utf-8")
         if r.returncode != 0:
             raise SystemExit(f"{cmd[0]} (код {r.returncode}): {r.stderr.strip()}")
         return
-    code, tail = run_ffmpeg_progress(cmd, progress_file, on_seconds)
+    code, tail = run_ffmpeg_progress(cmd, progress_file, on_seconds, token)
     if code != 0:
         raise SystemExit(f"{cmd[0]} (код {code}): {tail}")
 
@@ -218,19 +222,78 @@ def encode(clip: Path, out: Path, cfg: dict,
     return info
 
 
+def check_concat_inputs(infos: list[tuple[Path, dict]], cfg: dict) -> list[str]:
+    """Клипы перед склейкой `-c copy`: все должны иметь identical параметры.
+
+    Иначе ffmpeg пересобирает поток и PTS финала рвётся (плеер, который открывается по
+    .funscript, расходится со скриптом). Меряем width/height, fps, pix_fmt, timescale,
+    кодек видео, кодек/частоту/каналы аудио и хвост аудио (контейнер длиннее видеопотока
+    => склейка длиннее скрипта). Клипы нормализуются при резе сцены
+    (`scenedetect_run.py` + `configs/scenes.yaml:target_fps/target_width/target_height`),
+    здесь проверка, а не починка: несоответствие = выход с сообщением «перережь сцены».
+    Перекодировать клип при склейке нечем — второй энкод теряет качество и даёт ~1.0x
+    realtime на клип.
+
+    `infos` = пары (клип, результат `probe`), снятые мерджем для оффсетов: `ffprobe` на
+    клип ~20 мс, 135 клипов ~3 с, второй проход по тем же файлам — лишняя работа.
+    """
+    problems = []
+    fps = int(cfg["target_fps"])
+    w, h = int(cfg["target_width"]), int(cfg["target_height"])
+    for clip, info in infos:
+        name = clip.name
+        if info["vcodec"] != "h264":
+            problems.append(f"{name}: кодек {info['vcodec']} != h264")
+        if (info["width"], info["height"]) != (w, h):
+            problems.append(f"{name}: {info['width']}x{info['height']} != {w}x{h}")
+        if abs(info["r_fps"] - fps) > 0.5:
+            problems.append(f"{name}: r_frame_rate {info['r_fps']} != {fps} "
+                            f"(configs/scenes.yaml:target_fps)")
+        if info["pix_fmt"] != "yuv420p":
+            problems.append(f"{name}: pix_fmt {info['pix_fmt']} != yuv420p")
+        if info["timescale"] != int(cfg["video_track_timescale"]):
+            problems.append(f"{name}: time_base 1/{info['timescale']} != "
+                            f"1/{cfg['video_track_timescale']}")
+        if cfg["audio"]:
+            if info["acodec"] is None:
+                problems.append(f"{name}: аудиопотока нет")
+            elif info["acodec"] != "aac":
+                problems.append(f"{name}: аудио {info['acodec']} != aac")
+            elif info["sample_rate"] != int(cfg["audio_rate"]) or info["channels"] != 2:
+                problems.append(f"{name}: аудио {info['sample_rate']} Гц {info['channels']} кан. "
+                                f"!= {cfg['audio_rate']} stereo")
+        tail = info["duration_ms"] - info["video_ms"]
+        if tail > 25:
+            # AAC-хвост: склейка меряет контейнер, и каждый шве добавляет дыру в PTS
+            problems.append(f"{name}: контейнер длиннее видео на {tail} мс "
+                            f"(пост-трим реза не отработал)")
+    return problems
+
+
 def concat(segments: list[Path], out: Path, cfg: dict,
-           on_seconds: "callable | None" = None) -> Path:
-    """Сегменты в порядке списка -> один mp4 без перекодирования (PTS считает ffmpeg)."""
+           on_seconds: "callable | None" = None,
+           scratch: Path | None = None,
+           token: "CancelToken | None" = None) -> Path:
+    """Клипы в порядке списка -> один mp4 без перекодирования (`-c copy`).
+
+    Клипы читаются **на месте** из папки клипов: список склейки — единственный файл,
+    который склейка пишет, и он в `scratch` (work/concat), не в папке пользователя.
+    Нормализация сделана при резе сцены, и mp4 финала пишется один раз.
+    `-fflags +genpts`: ffmpeg считает PTS подряд по длительностям сегментов; edit list
+    сегментов не переносится (замер: dts финала = 0, первый пакет = 0).
+    `+faststart` = moov в начало файла.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
-    # список сегментов и файл прогресса — рядом с сегментами (concat_dir), а не в
-    # папке результата: в ней лежат только mp4 и funscript
-    lst = (segments[0].parent if segments else out.parent) / "concat_list.txt"
+    base = Path(scratch) if scratch is not None else (
+        segments[0].parent if segments else out.parent)
+    base.mkdir(parents=True, exist_ok=True)
+    lst = base / "concat_list.txt"
     lst.write_text("".join(f"file '{p.as_posix()}'\n" for p in segments),
                    encoding="utf-8", newline="\n")
     run_ffmpeg([cfg["ffmpeg_bin"], "-hide_banner", "-loglevel", "error", "-y",
                 "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", str(lst),
                 "-c", "copy", "-movflags", "+faststart", str(out)],
-               cfg, on_seconds, lst.with_name(out.stem + ".progress.txt"))
+               cfg, on_seconds, base / (out.stem + ".progress.txt"), token)
     return lst
 
 
@@ -259,13 +322,18 @@ def packets_monotonic(path: Path, cfg: dict) -> tuple[bool, str]:
 
 
 def check_final(video: Path, cfg: dict, segments: int = 1) -> list[tuple[bool, str]]:
-    """Финальный mp4: целевые параметры, длительность видеопотока, PTS."""
+    """Финальный mp4: целевые параметры, длительность видеопотока, PTS.
+
+    Клипы обрезаны пост-тримом реза (контейнер клипа == видеопоток), concat copy тянет
+    только AAC-прайминг первого клипа (<= 21.3 мс), поэтому допуск 25 мс. Энкод сегментов
+    (`funscript_video.py`, `-shortest`) добавляет округление до AAC-кадра на каждый сегмент
+    (<= 21.3 мс), и хвосты складываются: допуск 25 + 22*(N-1). Клип с хвостом больше
+    допустимого (`check_concat_inputs` меряет каждый клип) в сумме даёт больше 22 мс на
+    сегмент, и проверка его видит.
+    """
     info = probe(video, cfg)
     fps = int(cfg["target_fps"])
-    # каждый сегмент с `-shortest` несёт AAC-хвост округления до AAC-кадра (<= 21.3 мс):
-    # format-длительность контейнера длиннее видеопотока на сумму хвостов сегментов.
-    # Скрипт выравнивается по format (длине, которую показывает плеер)
-    tail_tol = 22 * max(segments, 1)
+    tail_tol = 25 + 22 * max(int(segments) - 1, 0)
     out = [
         # avg_frame_rate = кадры / stream duration, а stream duration длиннее на прайминг
         # AAC, поэтому правильная проверка — объявленный r_frame_rate
@@ -279,11 +347,11 @@ def check_final(video: Path, cfg: dict, segments: int = 1) -> list[tuple[bool, s
          f"аудио {info['sample_rate']} Гц {info['channels']} кан. (цель {cfg['audio_rate']} stereo)"),
         (info["timescale"] == int(cfg["video_track_timescale"]),
          f"time_base 1/{info['timescale']} = 1/{cfg['video_track_timescale']}"),
-        # формат == видеопоток: `-shortest` срезает аудио по концу видео
+        # формат == видеопоток: concat copy тянет только AAC-прайминг первого клипа
         (info["duration_ms"] - info["video_ms"] <= tail_tol,
          f"длительность: видео {info['video_ms']} мс ({info['frames']} кадров), "
          f"формат {info['duration_ms']} мс (разница {info['duration_ms'] - info['video_ms']} мс "
-         f"= AAC-округление {segments} сегм., допуск {tail_tol})"),
+         f"= AAC-прайминг, допуск {tail_tol})"),
     ]
     ok, line = packets_monotonic(video, cfg)
     out.append((ok, f"PTS: {line}"))

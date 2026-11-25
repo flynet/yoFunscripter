@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import scenedetect_run as sd
+from .cancel import Cancelled, CancelToken
 from .paths import layout
 from .progress import ProgressMeter
 from .no_window import run as bg_run
@@ -37,6 +38,7 @@ class ScenesOptions:
     force: bool = False
     limit: int = 0
     no_check: bool = False
+    device: str = "auto"
 
 
 def load_scenes_config(cfg_path: Path | None = None) -> dict:
@@ -46,6 +48,20 @@ def load_scenes_config(cfg_path: Path | None = None) -> dict:
     cfg["ffmpeg"] = lay.ffmpeg_bin
     cfg["ffprobe"] = lay.ffprobe_bin
     return cfg
+
+
+def cut_vcodec(cfg: dict, device: str) -> tuple[str, str]:
+    """Энкод реза из устройства из настроек: cuda -> NVENC, иначе/авто -> libx264.
+
+    NVENC даёт GPU-энкод клипа, и один процесс ffmpeg режет N сцен = N параллельных
+    сессий; лимит сессий GeForce проверяется на число сцен в `pick_vcodec`. `auto`
+    остаётся на CPU: GPU-энкод включается только когда пользователь выбрал cuda.
+    """
+    if str(device).strip().lower() == "cuda":
+        cfg["vcodec"] = "h264_nvenc"
+        return "h264_nvenc", "рез на NVENC (GPU)"
+    cfg["vcodec"] = "libx264"
+    return "libx264", "рез на CPU (libx264)"
 
 
 def duration_s(cfg: dict, video: Path) -> float:
@@ -82,11 +98,15 @@ def list_videos(opts: ScenesOptions) -> list[Path]:
     return videos
 
 
-def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None) -> dict:
+def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
+        token: "CancelToken | None" = None) -> dict:
     """Cut all videos of `opts.source` into `opts.out_dir`; returns the run summary.
 
     `on_progress(done_units, total_units)` — units are seconds of source video.
     `on_log(line)` — one line per video, same text as the CLI print.
+    `token` — the user's Cancel: the ffmpeg of each video is registered in it, and
+    `Cancelled` leaves the stage at the next loop boundary, so nothing is written after
+    the stop.
     """
     videos = list_videos(opts)
     if not videos:
@@ -109,6 +129,10 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None) -> dic
     scenes_dir.mkdir(parents=True, exist_ok=True)
     opts.out_dir.mkdir(parents=True, exist_ok=True)
 
+    codec, note = cut_vcodec(cfg, opts.device)
+    if on_log is not None:
+        on_log(note)
+
     a = argparse.Namespace(force=opts.force, cut_only=False, detect_only=False,
                            no_check=opts.no_check)
     jobs = max(1, int(opts.jobs))
@@ -129,17 +153,23 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None) -> dic
 
         return on_phase, on_cut
 
+    cancelled = False
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         futs = {}
         for v in videos:
             on_phase, on_cut = hooks(v)
             futs[pool.submit(sd.process, v, cfg, opts.out_dir, scenes_dir, a,
-                             on_phase, on_cut)] = v
+                             on_phase, on_cut, token)] = v
         done = 0
         for fut in as_completed(futs):
             v = futs[fut]
             try:
                 row = fut.result()
+            except Cancelled:
+                # the user stopped the run: every ffmpeg is already terminated, so the
+                # rest of the pool unwinds at once; the stage reports the cancel itself
+                cancelled = True
+                break
             except Exception as exc:            # one bad video does not kill the batch
                 row = dict(sd.EMPTY_ROW, video=str(v), stem=v.stem,
                            scene_list=str(scenes_dir / sd.list_of(v.stem, cfg)),
@@ -153,6 +183,11 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None) -> dic
                        f"{row['scenes']} files {row['out_files']} "
                        f"detect {row['detect_s']} s cut {row['cut_s']} s"
                        + (f" {row['reason']}" if row["reason"] else ""))
+
+    if cancelled:
+        if meter is not None:
+            meter.finish()
+        raise Cancelled()
 
     if meter is not None:
         meter.finish()

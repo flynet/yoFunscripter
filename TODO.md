@@ -8,18 +8,37 @@ State of the project, in the order of what is left.
   (forced re-cut: 3 clips, progress 15 s = 15 s, no progress files left in the output
   folder). Real 1080p source `11 (2).mp4`: scenes of 78 / 1706 / 533 frames came out
   exactly as the scene list, `time_base 1/30000`, moov before mdat, min dts 0, checks clean.
+  The cut is one ffmpeg process per video with `filter_complex_script`: `split=N`, trim by
+  frame numbers, `fps=target_fps`, `scale/pad/setsar` to the target size, AAC audio — the
+  clip is normalized once, here (unit-tested; the normalized clips of a real cut have not
+  been measured in this app yet). The graph and the progress file live in `work/`, the
+  output folder keeps only clips.
 - **Stage 2 (funscripts)** end to end on 3 real clips: ticks 297 / 102 / 75, the progress
   meter finished at 2699 frames = the sum of the frames of the clips.
 - **Stage 3 (merge)** end to end: 1 real clip (18 s) -> `result.mp4` + `result.funscript`
   with 32 checks `PASS`, 0 fails (payload rules, target format, `time_base 1/30000`,
   monotonic PTS, last tick 18421 = video duration, ticks 75 = 75 - 0 + 0), progress
   18 s = 18 s of source video. The freshness rule was seen working: a clip copied with a
-  newer mtime was rejected because its sidecar was older. Re-running with the segment
-  cache reuses the encoded segment (encode skipped, concat + checks re-run).
-- 40 unit tests pass: settings (atomic save, backup, clamping), the updater (release
-  parsing, version compare, SHA-256, resume of a partial download), the language
-  catalogues (same keys, same placeholders), the progress meter, the merge selection
-  (filters, five order modes, reproducible random), the packaged layout.
+  newer mtime was rejected because its sidecar was older. The merge is now `-c copy` on the
+  clips **in place** (the normalization moved to the cut, so the merge encodes and copies
+  nothing): the path is unit-tested, and it has not been run against real clips in this app
+  — the design and the numbers are measured in `D:\Java\yolo` (concat copy of normalized
+  clips, dts of the final = 0, container tail = AAC priming only).
+- **Cancel** in the window (offscreen, Qt only, no CPU work): each card has «Cancel»
+  (`QPushButton#danger`), it is enabled only while a run is going, `_cancel()` with no
+  worker does nothing, and `_cancelled` writes `⛔ Merge: stopped by the user` to the
+  console and the status line and unlocks the buttons. Cancel kills the registered ffmpeg
+  children and stops the stage at the loop boundaries (video, clip, progress hook); the
+  detect pass of stage 1 decodes in-process (PySceneDetect), so it is not interruptible —
+  the stage stops right after it.
+- 74 unit tests pass (0.6 s, no ffmpeg, no torch): settings (atomic save, backup,
+  clamping), the updater (release parsing, version compare, SHA-256, resume of a partial
+  download), the language catalogues (same keys, same placeholders), the progress meter,
+  the cut graph (one split, frame trim, normalization to the target, NVENC session limit,
+  one thread per x264 encoder), the merge selection (filters, five order modes,
+  reproducible random), the clip rules the merge refuses (`check_concat_inputs`), the
+  concat list written in the work dir with the clips read in place, the cancel token
+  (kill of live children, `Cancelled` out of the ffmpeg runner), the packaged layout.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,
@@ -62,6 +81,13 @@ State of the project, in the order of what is left.
   in the packaged build.
 
 ## Left
+
+- **The new cut and merge on real video.** Stage 1 writes normalized clips (target fps,
+  size, timescale, AAC), stage 3 concatenates them in place with `-c copy`. The numbers are
+  measured in `D:\Java\yolo`; in this app the run must be seen on real sources: a cut with
+  `cuda` (NVENC) and a cut with `cpu` (libx264), a merge of several clips (checks PASS, the
+  duration of the final = the sum of the clips, the last tick = the duration), and «Cancel»
+  pressed in the middle of a cut, of a tracking run and of a concat.
 
 - **One run inside the packaged app.** `dist\` and `dist\install\YoFunscripter-Setup-1.0.0.exe`
   are rebuilt after the «Save» row (228.4 MB, SHA-256

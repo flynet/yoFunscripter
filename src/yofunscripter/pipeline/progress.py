@@ -5,15 +5,17 @@ real elapsed work of a run, not a file counter:
 
   - stage 1: seconds of source video (15% detection + 85% ffmpeg cut);
   - stage 2: frames of all clips (the tracking loop is per frame);
-  - stage 3: seconds of encoded segments (encode + concat measured by ffmpeg `-progress`).
+  - stage 3: seconds of source video (5% of the probes, 95% of the concat copy measured by
+    ffmpeg `-progress`).
 
 The meter aggregates contributions of worker threads, clamps them to the total and
 throttles emissions, so the GUI is not flooded (repainting a bar per frame is pointless).
 
-`run_ffmpeg_progress` is the ffmpeg runner for the GUI: it appends `-progress <file>`
-before the `-o` output flag, ffmpeg writes `out_time` there, and the caller polls it.
+`run_ffmpeg_progress` is the ffmpeg runner for the GUI: it inserts `-progress <file>`
+before the output file, ffmpeg writes `out_time` there, and the caller polls it.
 The command itself (graph, flags, outputs) is unchanged, so the encode is identical to
-the CLI run.
+the CLI run, and a child registered in the cancel token is killed when the user presses
+Cancel.
 """
 from __future__ import annotations
 
@@ -22,6 +24,7 @@ import threading
 import time
 from pathlib import Path
 
+from .cancel import Cancelled, CancelToken, _kill
 from .no_window import popen
 
 
@@ -52,11 +55,16 @@ def read_progress(progress_file: Path) -> float | None:
 
 def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
                         on_seconds: "callable | None" = None,
+                        token: CancelToken | None = None,
                         poll_s: float = 0.25) -> tuple[int, str]:
     """ffmpeg with `-progress <file>`; returns (code, stderr tail).
 
     `-progress` is an output option, so it is inserted before the output file: appended at
     the end it applies to a following output and the file is never written.
+
+    `token` is the user's Cancel: the process is registered in it (Cancel kills a running
+    ffmpeg at once), and `Cancelled` is raised when the flag is set — the poll loop and
+    the hook both watch it, so the bar stops with the encode.
     """
     progress_file.parent.mkdir(parents=True, exist_ok=True)
     if progress_file.exists():
@@ -66,13 +74,25 @@ def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
         idx = len(cmd) - 2
     full = cmd[:idx] + ["-progress", str(progress_file)] + cmd[idx:]
     proc = popen(full, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if token is not None:
+        token.register(proc)
+    cancelled = False
     while proc.poll() is None:
+        if token is not None and token.cancelled():
+            _kill(proc)
+            cancelled = True
+            break
         if on_seconds is not None:
-            on_seconds(read_progress(progress_file) or 0.0)
+            try:
+                on_seconds(read_progress(progress_file) or 0.0)
+            except Cancelled:
+                _kill(proc)
+                cancelled = True
+                break
         time.sleep(poll_s)
     stderr = proc.stderr.read().decode("utf-8", "replace")
     tail = " | ".join(line.strip() for line in stderr.splitlines() if line.strip())
-    if on_seconds is not None:
+    if on_seconds is not None and not cancelled:
         on_seconds(read_progress(progress_file) or 0.0)
     # the file is only a pipe for out_time; the last read is done, so it is not left
     # in the user's folders (stage 1 writes it next to the clips)
@@ -80,6 +100,11 @@ def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
         progress_file.unlink()
     except OSError:
         pass
+    if cancelled or (token is not None and token.cancelled()):
+        # the user pressed Cancel: `token.cancel()` kills the registered child, so the
+        # process can also leave the loop by exiting with a signal (-1), and the stage
+        # must unwind as "stopped by the user", not as an ffmpeg failure
+        raise Cancelled()
     return proc.returncode, tail[-260:]
 
 

@@ -31,6 +31,29 @@ min_scenes: 2          # видео с 1 сценой не режется: 5-с�
 crf: 18
 preset: veryfast
 
+# Целевой формат клипа. Клип нормализуется ОДИН РАЗ при резе: граф реза содержит
+# fps=target_fps и scale/pad до target_width x target_height, и склейка читает клипы
+# `-c copy` без перекодирования. Без нормализации клип выходит fps источника
+# (23.976/25/50/VFR), и каждый прогон мерджа переэнкодил бы весь клип (~1.0x realtime).
+# Мердж проверяет эти параметры (`check_concat_inputs`) и просит перерезать, если клип
+# извне: чинить клип при склейке нечем.
+target_fps: 30
+target_width: 1920
+target_height: 1080
+
+# Энкод реза: CPU libx264 (crf 18, veryfast = 8.7x realtime, замер 11-мин видео -> 76 с).
+# GUI ставит vcodec=h264_nvenc, когда устройство cuda. NVENC режет N сцен = N параллельных
+# сессий, и GeForce обрывает их по лимиту сессий (замер 11 (2).mp4, 20 сцен: "Error while
+# opening encoder" на 13-м выходе, файлы 18-20 пустые), поэтому NVENC только при
+# scenes <= nvenc_max_outputs; больше — этот видео режется libx264. Скорость NVENC p5 (9x)
+# и x264 veryfast (8.7x) одинакова. -crf/-keyint_min/-sc_threshold/-threads NVENC не
+# принимает, качество = -cq в vbr.
+vcodec: libx264
+nvenc_preset: p5
+nvenc_rc: vbr
+nvenc_cq: 26
+nvenc_max_outputs: 8
+
 # Ключевые кадры и timestamp. Клип, который открывается по .funscript, ищет кадр по
 # скрипту: при gop 250 (дефолт x264) ключевики стоят каждые 10 с при 25 fps, и плеер
 # стоит на чёрном до ближайшего ключевого кадра. gop 60 = ключевик каждые 2.4 с.

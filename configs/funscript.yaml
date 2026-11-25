@@ -174,10 +174,13 @@ concat_dir: work/concat     # сегменты энкода — внутри ins
 # Энкод сегментов: все сегменты получают identical параметры кодека и timescale —
 # только при этом concat demuxer (`-c copy`) считает PTS непрерывно без перекодирования.
 # Источник video_source: 1920x1080 yuv420p 23.976 fps, AAC 48k stereo.
+# target_width/height/fps задаются в configs/scenes.yaml (клип нормализуется при резе),
+# GUI подставляет эти же значения сюда; здесь они для CLI-прогона.
 target_width: 1920
 target_height: 1080
 target_fps: 30
-x264_crf: 18           # визуально без потерь на 1080p источнике
+x264_crf: 18           # visually lossless on a 1080p source; merge does not encode,
+                       # the clips are encoded once at the scene cut (scenes.yaml)
 x264_preset: veryslow
 x264_gop: 60           # 2 с при 30 fps; keyint_min тот же, sc_threshold 0 = предсказуемый GOP
 audio_bitrate: 192k

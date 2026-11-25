@@ -17,19 +17,34 @@
 
   <видео>-scene-list.csv
 
-Рез: один процесс ffmpeg на сцену, `-ss` (offset_pts + (Start-1-head)/fps) до `-i` и
-`-frames:v` = Length + head + tail. Замер на 11 (2).mp4 (head/tail 0): сцены 78 / 1706 /
-533 кадров вышли ровно по списку сцен, time_base 1/30000, moov в начале, min dts 0. До
-этого пробовали:
+Рез: ОДИН процесс ffmpeg на видео — граф `split + trim=start_frame/end_frame` по номерам
+кадров из CSV, и клип нормализуется ЗДЕСЬ, один раз: граф содержит `fps=target_fps`,
+`scale/pad/setsar` до target_width x target_height, все выходы кодируются с одинаковым
+набором (crf, gop, timescale, bframes 0, faststart, AAC 48k stereo). Склейка
+(`funscript_concat.py`) читает такие клипы `-c copy` без перекодирования: перекод клипа
+при склейке = вторая полная потеря качества и ~1.0x realtime на клип.
 
-  split + trim=start_frame: trim сравнивает start_frame с pts, pts шагает по time_base
-    источника, и последние выходы графа не получают кадров (замер: выходы 223247 / 774086
-    / 0 байт, ffmpeg пишет «Could not open encoder before EOF»).
+trim по номеру кадра точен: проверено на 12 границах sexy.mp4, первые 4 кадра клипа =
+кадры оригинала Start Frame - 1, последние кадры = End Frame - 1. До графа пробовали:
+
   -ss по границам без offset: сдвиг на 2 кадра. video_full/sexy.mp4: -ss 121.480 сажает
     ffmpeg на кадр 3035 вместо 3037; у 11 (2).mp4 первый pts_time = 0.08 с (edit list),
     offset = max(pts-dts) файла, и клип начинается с хвоста прошлой сцены.
   segment muxer с -segment_frames: режет по ключевым кадрам, границы съезжают
     (seg003=750 кадров вместо 533, seg001=325 вместо 78).
+
+Граф идёт с `-reinit_filter 0`: у 11 (3).mp4 на 31.3 с кадры меняют цветовые метаданные
+(unknown -> bt709/tv, пиксели те же yuv420p), ffmpeg пересобирал граф, trim/atrim
+начинали счёт кадров заново, клипы после этой точки получали не те кадры, а последние
+два не получали ничего ("Could not open encoder before EOF"). Замер без флага: 56
+"Non-monotonic DTS", аудио 13.803 с вместо 14.000; с флагом — 0 и 14.000.
+
+Энкод: CPU libx264 (crf 18, veryfast = 8.7x realtime). NVENC (GPU) включается, когда
+устройство cuda: vcodec = h264_nvenc, но не больше nvenc_max_outputs выходов в одном
+процессе — GeForce обрывает параллельные NVENC-сессии по лимиту (замер 11 (2).mp4, 20
+сцен: "Error while opening encoder" на 13-м выходе, файлы 18-20 пустые). Сцен больше
+лимита -> этот видео режется libx264. Скорость NVENC p5 (9x) и x264 veryfast (8.7x)
+одинакова.
 
 Границы CSV (docs): Length (frames) = End Frame - Start Frame + 1, то есть Start Frame и
 End Frame = первый и последний кадр сцены (inclusive), следующая сцена = End Frame + 1.
@@ -40,12 +55,12 @@ End Frame = первый и последний кадр сцены (inclusive), 
 для пилотов (19x объёма). preset = скорость кодирования, к потери качества отношения не
 имеет.
 
-Аудио режется atrim по секундам и кодируется AAC 192k 48000 stereo — ровно как энкод
-сегментов склейки (scripts/funscript_concat.py), файл которого ScriptPlayer играет.
-ALAC (44100) в обычном видео-плеере играет, а ScriptPlayer звук потерял. Копировать аудио
-нельзя: -c:a copy при -ss берёт звук от точки реза до конца ФАЙЛА, контейнер получается
-длиннее видео (замер: 5.2 с видео -> 24.9 с контейнера), плеер стоит на последнем кадре
-и «висит» до конца звука. audio: false = клипы без звука (-an).
+Аудио режется atrim по секундам и кодируется AAC 192k 48000 stereo — ровно как формат
+склейки (scripts/funscript_concat.py), файл которого ScriptPlayer играет. ALAC (44100)
+в обычном видео-плеере играет, а ScriptPlayer звук потерял. Копировать аудио нельзя:
+-c:a copy при -ss берёт звук от точки реза до конца ФАЙЛА, контейнер получается длиннее
+видео (замер: 5.2 с видео -> 24.9 с контейнера), плеер стоит на последнем кадре и
+«висит» до конца звука. audio: false = клипы без звука (-an).
 
 Замер клипа, который ScriptPlayer показывал чёрным 10 с и без звука, против эталона
 video_result/result_1.mp4 (30 fps, играет): у клипа time_base 1/12800, moov в конце файла
@@ -66,6 +81,7 @@ import csv
 import sys
 import time
 
+from .cancel import CancelToken
 from .progress import run_ffmpeg_progress
 from .paths import layout
 from .no_window import run as bg_run
@@ -82,7 +98,9 @@ CFG_KEYS = ("ffmpeg", "ffprobe", "source_dir", "out_dir", "scenes_dir",
             "stats_dir", "pattern", "threshold", "min_scene_len", "min_scenes", "crf",
             "preset", "jobs", "name_template", "list_template", "head_frames",
             "tail_frames", "audio", "audio_codec", "audio_bitrate", "audio_rate",
-            "audio_channels", "profile", "gop", "timescale", "faststart", "bframes")
+            "audio_channels", "profile", "gop", "timescale", "faststart", "bframes",
+            "target_fps", "target_width", "target_height", "vcodec",
+            "nvenc_preset", "nvenc_rc", "nvenc_cq", "nvenc_max_outputs")
 
 STATS_COLUMNS = ("video", "stem", "scene_list", "scenes", "out_files", "out_mb",
                  "status", "detect_s", "cut_s", "kf_max_gap", "min_dts", "moov_first",
@@ -155,7 +173,8 @@ def probe_stream(cfg: dict, path: Path, stream: str) -> dict:
     fields = {}
     proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", stream,
                            "-show_entries",
-                           "stream=codec_name,sample_rate,channels,time_base,nb_frames,duration",
+                           "stream=codec_name,sample_rate,channels,time_base,nb_frames,"
+                           "duration,avg_frame_rate",
                            "-of", "default=noprint_wrappers=1", str(path)], capture_output=True)
     for line in proc.stdout.decode("utf-8", "replace").splitlines():
         if "=" in line:
@@ -210,17 +229,23 @@ def box_order(path: Path) -> list[str]:
     return types
 
 
-def check_clips(cfg: dict, out_paths: list[Path], fps: float) -> tuple[dict, list[str]]:
+def check_clips(cfg: dict, out_paths: list[Path], target_fps: float) -> tuple[dict, list[str]]:
     """Проверка клипа по критериям эталона (video_result/result_1.mp4, играет в
-    ScriptPlayer): timescale, шаг ключевых кадров, moov в начале, аудио 48000 stereo,
-    неотрицательный dts. Меряются ПЕРВЫЙ и ПОСЛЕДНИЙ клип видео: все клипы вышли одним
-    процессом ffmpeg, и 2 части файла достаточно (клипы = 200-4000 кадров, ffprobe на
-    все 12789 кликов video/ = часы). Агрегат: худший kf_max_gap, худший min_dts."""
+    ScriptPlayer): fps нормализации, timescale, шаг ключевых кадров, moov в начале, аудио
+    48000 stereo, неотрицательный dts. Меряются ПЕРВЫЙ и ПОСЛЕДНИЙ клип видео: все клипы
+    вышли одним процессом ffmpeg, и 2 части файла достаточно (клипы = 200-4000 кадров,
+    ffprobe на все 12789 кликов video/ = часы). Агрегат: худший kf_max_gap, худший min_dts."""
     stats = {"kf_max_gap": 0.0, "min_dts": 0.0, "moov_first": True}
     problems = []
+    fps = float(target_fps)
     gop_gap = int(cfg["gop"]) / fps
     for path in {out_paths[0], out_paths[-1]}:
         v = probe_stream(cfg, path, "v:0")
+        rate = (v.get("avg_frame_rate") or "0/0").split("/")
+        clip_fps = float(rate[0]) / float(rate[1]) if len(rate) == 2 and float(rate[1]) else 0.0
+        if abs(clip_fps - fps) > 0.5:
+            problems.append(f"{path.name}: fps {clip_fps} != {cfg['target_fps']} "
+                            f"(граф реза нормализует клип)")
         ts = v.get("time_base", "").split("/")[-1]
         if ts != str(cfg["timescale"]):
             problems.append(f"{path.name}: time_base 1/{ts} != 1/{cfg['timescale']}")
@@ -286,11 +311,12 @@ def list_of(stem: str, cfg: dict) -> str:
 
 
 # Параметры, которые меняют bytes клипа: их сигнатура пишется в scenes_dir/<stem>-cut.sig.
-# Сменили crf/gop/timescale/audio в конфиге -> клипы переэнкодятся; список сцен при этом
-# не пере детектируется (детект от флагов кодирования не зависит).
+# Сменили crf/gop/timescale/audio/нормализацию в конфиге -> клипы переэнкодятся; список сцен
+# при этом не пере детектируется (детект от флагов кодирования не зависит).
 SIGN_KEYS = ("crf", "preset", "profile", "gop", "bframes", "timescale", "faststart",
              "audio", "audio_codec", "audio_bitrate", "audio_rate", "audio_channels",
-             "head_frames", "tail_frames")
+             "head_frames", "tail_frames", "target_fps", "target_width", "target_height",
+             "vcodec", "nvenc_preset", "nvenc_rc", "nvenc_cq")
 
 
 def signature(cfg: dict) -> str:
@@ -370,94 +396,159 @@ def run_cli_progress(cmd: list[str], progress_file: Path,
     return run_ffmpeg_progress(cmd, progress_file, on_seconds)
 
 
-def first_pts_time(cfg: dict, video: Path) -> float:
-    """pts_time первого видеопакета: у mp4 с edit list он не ноль (замер 11 (2).mp4: 0.08 с
-    = 2 кадра при 25 fps, sexy.mp4: те же 2 кадра, из-за которых `-ss 121.480` сажал ffmpeg
-    на кадр 3035 вместо 3037). `-ss` отсчитывается от этого pts, поэтому рез добавляет offset."""
-    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
-                           "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(video)],
-                          capture_output=True)
-    vals = [float(x.strip().strip(",")) for x in
-            proc.stdout.decode("utf-8", "replace").split() if x.strip().strip(",")]
-    return min(vals) if vals else 0.0
+def pick_vcodec(cfg: dict, scenes: int) -> tuple[str, str]:
+    """Энкод реза для этого видео: NVENC только когда сцен не больше лимита сессий.
+
+    GeForce обрывает параллельные NVENC-сессии по лимиту (замер 11 (2).mp4, 20 сцен в
+    одном графе: "Error while opening encoder" на 13-м выходе). Один процесс ffmpeg режет
+    N сцен = N сессий, поэтому vcodec=h264_nvenc применяется при N <= nvenc_max_outputs,
+    а видео с большим числом сцен режется libx264. Причина возвращается строкой — она
+    пишется в лог GUI.
+    """
+    codec = str(cfg["vcodec"])
+    if codec != "h264_nvenc":
+        return "libx264", ""
+    limit = int(cfg["nvenc_max_outputs"])
+    if scenes > limit:
+        return "libx264", f"NVENC: сцен {scenes} > лимит сессий {limit} -> libx264"
+    return "h264_nvenc", ""
 
 
-def cut_cmd(cfg: dict, video: Path, row: dict, target: Path, offset: float, fps: float,
-            with_audio: bool) -> list[str]:
-    """Один процесс ffmpeg на сцену: `-ss` до `-i` и `-frames:v` = Length + head + tail.
+def build_graph(rows: list[dict], cfg: dict, fps: float, with_audio: bool) -> str:
+    """Один граф на видео: split на N веток, trim по номерам кадров, по одному выходу.
 
-    `-ss` перед `-i` ищет ключевой кадр перед точкой и декодирует до неё, отбрасывая чужие
-    кадры (exact seek); `-frames:v` даёт ровно нужное число кадров. Замер на 11 (2).mp4
-    (head/tail 0): сцены 78 / 1706 / 533 кадров вышли ровно по списку сцен, time_base
-    1/30000, moov в начале, min dts 0. Граф split+trim не годится: trim сравнивает
-    start_frame с pts, pts шагает по time_base источника, и последние выходы графа не
-    получают кадров — ffmpeg открывает энкодер выхода только когда приходит первый кадр
-    (замер: выходы 223247 / 774086 / 0 байт). Один процесс на сцену ещё и дешевле по
-    памяти: один декод и один энкодер, а не N энкодеров в одном графе.
+    trim:end_frame исключительный, поэтому хвост = End Frame - 1 + tail + 1.
+    Граф пишется в одну строку: перевод строки ffmpeg разбирает как «trailing garbage».
+    atrim считает в секундах, start/end берём из кадров / fps.
+
+    Нормализация клипа — здесь, один раз: `fps=target_fps` и `scale/pad/setsar` до
+    target_width x target_height, и склейка читает клипы `-c copy` без перекодирования.
+    Без этой строки клип выходит fps источника (23.976/25), и каждый прогон мерджа
+    переэнкодил бы весь клип.
     """
     head = int(cfg["head_frames"])
     tail = int(cfg["tail_frames"])
-    start0 = max(0, int(row["Start Frame"]) - 1 - head)
-    length = int(row["Length (frames)"]) + head + tail
-    cmd = [cfg["ffmpeg"], "-y", "-hide_banner", "-loglevel", "error", "-nostats",
-           "-ss", f"{offset + start0 / fps:.6f}", "-i", str(video),
-           "-frames:v", str(length), "-t", f"{length / fps:.6f}",
-           # -threads 1: x264 при threads=0 заводит кадровых потоков по числу ядер, каждый
-           # со своими буферами; сцен много, и они идут параллельно через jobs.
-           "-c:v", "libx264", "-crf", str(cfg["crf"]), "-preset", cfg["preset"],
-           "-threads", "1", "-profile:v", cfg["profile"], "-pix_fmt", "yuv420p",
-           "-g", str(cfg["gop"]), "-keyint_min", str(cfg["gop"]), "-sc_threshold", "0",
-           "-bf", str(cfg["bframes"]), "-video_track_timescale", str(cfg["timescale"])]
+    w, h = int(cfg["target_width"]), int(cfg["target_height"])
+    target_fps = int(cfg["target_fps"])
+    n = len(rows)
+    parts = [f"[0:v]split={n}" + "".join(f"[v{i}]" for i in range(n))]
+    for i, r in enumerate(rows):
+        start0 = max(0, int(r["Start Frame"]) - 1 - head)
+        end0 = int(r["End Frame"]) - 1 + tail
+        conv = f",fps={target_fps}" if target_fps != fps else ""
+        parts.append(f"[v{i}]trim=start_frame={start0}:end_frame={end0 + 1},"
+                     f"setpts=PTS-STARTPTS{conv},"
+                     f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+                     f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1[vo{i}]")
     if with_audio:
-        codec = cfg["audio_codec"]
-        cmd += ["-c:a", codec, "-ar", str(cfg["audio_rate"]), "-ac", str(cfg["audio_channels"])]
-        if codec == "aac":
-            cmd += ["-b:a", cfg["audio_bitrate"]]
-    else:
-        cmd += ["-an"]
-    if cfg["faststart"]:
-        cmd += ["-movflags", "+faststart"]
-    cmd += [str(target)]
+        parts.append(f"[0:a]asplit={n}" + "".join(f"[a{i}]" for i in range(n)))
+        for i, r in enumerate(rows):
+            start0 = max(0, int(r["Start Frame"]) - 1 - head)
+            end0 = int(r["End Frame"]) - 1 + tail
+            parts.append(f"[a{i}]atrim=start={start0 / fps:.6f}:end={(end0 + 1) / fps:.6f},"
+                         f"asetpts=PTS-STARTPTS[ao{i}]")
+    return ";".join(parts)
+
+
+def video_args(cfg: dict, codec: str) -> list[str]:
+    """Флаги видеопотока клипа: одинаковые для всех выходов (concat copy их требует)."""
+    if codec == "h264_nvenc":
+        # NVENC (GPU): -crf, -keyint_min, -sc_threshold, -threads encoder не принимает.
+        # Качество = -cq в vbr-режиме, gop только -g. Потоков на каждый выход GPU не
+        # заводит, память процесса = буферы split, не энкодеров.
+        return ["-c:v", "h264_nvenc", "-preset", str(cfg["nvenc_preset"]),
+                "-rc", str(cfg["nvenc_rc"]), "-cq", str(cfg["nvenc_cq"]), "-b:v", "0",
+                "-spatial-aq", "1", "-temporal-aq", "1",
+                "-profile:v", cfg["profile"], "-pix_fmt", "yuv420p",
+                "-g", str(cfg["gop"]), "-bf", str(cfg["bframes"]),
+                "-video_track_timescale", str(cfg["timescale"])]
+    # -threads 1: x264 при threads=0 заводит кадровых потоков по числу ядер (16), каждый со
+    # своими буферами. В графе split=N энкодеров N, и все живут одновременно: 57 сцен x 16
+    # потоков x 1080p = гигабайты на процесс. Один поток на выход: N энкодеров по ~15 MB.
+    return ["-c:v", "libx264", "-crf", str(cfg["crf"]), "-preset", cfg["preset"],
+            "-threads", "1",
+            "-profile:v", cfg["profile"], "-pix_fmt", "yuv420p",
+            "-g", str(cfg["gop"]), "-keyint_min", str(cfg["gop"]),
+            "-sc_threshold", "0", "-bf", str(cfg["bframes"]),
+            "-video_track_timescale", str(cfg["timescale"])]
+
+
+def cut_cmd(cfg: dict, video: Path, rows: list[dict], out_paths: list[Path],
+            graph_file: Path, with_audio: bool, fps: float, codec: str) -> list[str]:
+    """Один процесс ffmpeg на видео: N выходов из одного декодирования.
+
+    Аудио при audio:true режется atrim в секундах (границы от кадров / fps) и кодируется
+    AAC — копия аудио при -ss тянет звук до конца файла. Флаги timestamp/ключа совпадают
+    с форматом склейки, файл которого ScriptPlayer играет: gop = шаг ключевых кадров
+    (дефолт x264 = 250, то есть 10 с при 25 fps, и плеер, который открывается по
+    .funscript, стоит на чёрном до ближайшего ключевого; gop 60 = ключевик каждые 2.4 с);
+    bframes 0 -> pts == dts, mp4-muxer не пишет edit list с задержкой pts-dts; timescale
+    задаёт time_base; faststart = moov в начало файла.
+    """
+    graph_file.write_text(build_graph(rows, cfg, fps, with_audio), encoding="utf-8")
+    cmd = [cfg["ffmpeg"], "-y", "-hide_banner", "-loglevel", "error", "-nostats",
+           "-reinit_filter", "0",
+           "-i", str(video), "-filter_complex_script", str(graph_file)]
+    vargs = video_args(cfg, codec)
+    codec_a = cfg["audio_codec"]
+    aargs = ["-c:a", codec_a, "-ar", str(cfg["audio_rate"]), "-ac", str(cfg["audio_channels"])]
+    if codec_a == "aac":
+        aargs += ["-b:a", cfg["audio_bitrate"]]
+    for i, out in enumerate(out_paths):
+        cmd += ["-map", f"[vo{i}]"] + vargs
+        cmd += (["-map", f"[ao{i}]"] + aargs) if with_audio else ["-an"]
+        cmd += [str(out)]
     return cmd
 
 
 def run_cut(cfg: dict, video: Path, rows: list[dict], out_paths: list[Path],
             with_audio: bool, fps: float,
-            on_seconds: "callable | None" = None) -> tuple[int, str]:
-    """Рез всех сцен видео: по процессу на сцену, прогресс по секундам энкода.
+            on_seconds: "callable | None" = None,
+            token: "CancelToken | None" = None) -> tuple[int, str, str]:
+    """Рез всех сцен видео одним процессом; прогресс по секундам энкода.
 
-    Возвращает (код, хвост) как run_cli: первый неудачный процесс даёт код и текст.
-    `on_seconds(секунды_энкода)` зовётся с накопленным числом секунд видео, которое уже
-    закодировано, — прогресс полосы идёт по реальным секундам, не по числу файлов.
+    Возвращает (код, хвост, причина выбора энкода): первый неудачный процесс даёт код и
+    текст. `on_seconds(секунды_энкода)` зовётся с накопленным числом секунд видео, которое
+    уже закодировано, — прогресс полосы идёт по реальным секундам, не по числу файлов.
+    `token` — Cancel пользователя: ffmpeg этого процесса регистрируется в токене и
+    terminate'ится при нажатии, и `Cancelled` выходит наружу.
     """
-    offset = first_pts_time(cfg, video)
-    done = 0.0
-    # файл прогресса живёт в work/progress, не рядом с клипами: папка выходов
+    codec, reason = pick_vcodec(cfg, len(rows))
+    # граф и файл прогресса живут в work/, не рядом с клипами: папка выходов
     # пользователя должна содержать только клипы
-    progress_dir = layout().work_dir / "progress"
-    for i, (row, target) in enumerate(zip(rows, out_paths), 1):
-        progress_file = progress_dir / f"{video.stem}-progress-{i}.txt"
-        cmd = cut_cmd(cfg, video, row, target, offset, fps, with_audio)
-        # run_ffmpeg_progress вставляет `-progress` перед аргументом выхода сам: после
-        # `-o <файл>`/в конце строки ffmpeg файл прогресса не пишет (замер: файла нет)
-        rc, text = run_ffmpeg_progress(cmd, progress_file,
-                                       lambda s: on_seconds(done + s) if on_seconds else None)
-        done += int(row["Length (frames)"]) / fps
-        if rc != 0:
-            return rc, f"{target.name}: {text}"
-    return 0, ""
+    work = layout().work_dir
+    graph_file = work / "scenes" / f"{video.stem}-graph.txt"
+    graph_file.parent.mkdir(parents=True, exist_ok=True)
+    progress_file = work / "progress" / f"{video.stem}-cut.txt"
+    cmd = cut_cmd(cfg, video, rows, out_paths, graph_file, with_audio, fps, codec)
+    rc, text = run_ffmpeg_progress(cmd, progress_file, on_seconds, token)
+    if rc != 0 and codec == "h264_nvenc" and "opening encoder" in text.lower():
+        # GeForce снял сессию (драйвер, лимит, перегрев): тот же рез одним проходом на x264
+        rc, text = run_ffmpeg_progress(
+            cut_cmd(cfg, video, rows, out_paths, graph_file, with_audio, fps, "libx264"),
+            progress_file, on_seconds, token)
+        reason = f"NVENC не открыл энкодер ({text[:120]}) -> рез на libx264"
+    graph_file.unlink(missing_ok=True)
+    return rc, text, reason
 
 
 def post_trim(cfg: dict, out_paths: list[Path], rows: list[dict], fps: float) -> list[str]:
     """Хвост AAC округления: энкод даёт аудио длиннее видео до 21.3 мс, контейнер выходит
     длиннее видеопотока, и плеер, который открывается по .funscript, стоит на последнем
     кадре. Пост-трим `-c copy -t {Length/fps}` срезает звук по концу видео, кадры не
-    трогаёт (concurrent-конвейер склейки делает то же: -shortest + `-c copy -t`).
+    трогаёт (склейка делает то же: `-c copy -t`).
     -shortest в энкоде НЕ используем: он срезает ПОСЛЕДНИЙ КАДР (замер: клип 20,
-    Length 751 -> 750 кадров). Файл перезаписывается через tmp в той же папке."""
+    Length 751 -> 750 кадров). Файл перезаписывается через tmp в той же папке.
+
+    Кадры сверяются с ожидаемым числом ПОСЛЕ конверсии: граф реза содержит fps=target_fps,
+    и 24->30 меняет число кадров (200 кадров при 24 fps = 250 кадров при 30 fps),
+    ±1 кадр = округление fps-фильтра.
+    """
+    target_fps = int(cfg["target_fps"])
     problems = []
     for path, r in zip(out_paths, rows):
-        dur = int(r["Length (frames)"]) / fps
+        length = int(r["Length (frames)"])
+        dur = length / fps
         tmp = path.with_suffix(".tmp.mp4")
         rc, text = run_cli([cfg["ffmpeg"], "-y", "-hide_banner", "-loglevel", "error",
                             "-nostats", "-i", str(path), "-c", "copy", "-t", f"{dur:.6f}",
@@ -467,9 +558,12 @@ def post_trim(cfg: dict, out_paths: list[Path], rows: list[dict], fps: float) ->
             problems.append(f"{path.name}: пост-трим {text[:120]}")
             continue
         frames = probe_stream(cfg, tmp, "v:0").get("nb_frames", "")
-        if frames != str(int(r["Length (frames)"])):
+        # `-t Length/fps` оставляет Length кадров ИСХОДНОГО fps; после fps-фильтра то же
+        # время = Length * target_fps / fps кадров (округление fps-фильтра +/- 1)
+        want = int(round(length * target_fps / fps))
+        if frames != str(want) and abs(int(frames or 0) - want) > 1:
             problems.append(f"{path.name}: после пост-трима {frames} кадров, "
-                            f"должно быть {r['Length (frames)']}")
+                            f"должно быть {want} (при {target_fps} fps)")
         tmp.replace(path)
     return problems
 
@@ -492,8 +586,17 @@ def plan_row(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path) -> dict:
 
 
 def process(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path, a: argparse.Namespace,
-            on_phase: "callable | None" = None, on_cut: "callable | None" = None) -> dict:
+            on_phase: "callable | None" = None, on_cut: "callable | None" = None,
+            token: "CancelToken | None" = None) -> dict:
+    """Один видеофайл прогона: детект -> рез -> пост-трим -> проверки.
+
+    `token` — Cancel пользователя: ffmpeg реза регистрируется в нём, и `Cancelled` выходит
+    из `run_cut` наружу (этот видео больше не пишется).
+    """
     stem = video.stem
+    if token is not None:
+        # прогон остановлен: этот видео не детектится и не режется
+        token.check()
     csv_path = scenes_dir / list_of(stem, cfg)
     row = dict(EMPTY_ROW, video=str(video), stem=stem, scene_list=str(csv_path), status="")
     t0 = time.time()
@@ -545,7 +648,7 @@ def process(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path, a: argparse
     out_paths = [out_dir / out_name(stem, int(r["Scene Number"]), cfg) for r in rows]
     with_audio = bool(cfg["audio"]) and has_audio(cfg, video)
     t1 = time.time()
-    rc, text = run_cut(cfg, video, rows, out_paths, with_audio, fps, on_cut)
+    rc, text, codec_note = run_cut(cfg, video, rows, out_paths, with_audio, fps, on_cut, token)
     row["cut_s"] = round(time.time() - t1, 2)
     out = produced(out_dir, stem)
     row["out_files"] = len(out)
@@ -564,7 +667,7 @@ def process(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path, a: argparse
         row["status"] = ST_CUT
         problems = post_trim(cfg, out_paths, rows, fps) if with_audio else []
         if not a.no_check:
-            stats, check_problems = check_clips(cfg, out_paths, fps)
+            stats, check_problems = check_clips(cfg, out_paths, int(cfg["target_fps"]))
             problems += check_problems
             row["kf_max_gap"] = stats["kf_max_gap"]
             row["min_dts"] = stats["min_dts"]
@@ -576,6 +679,8 @@ def process(video: Path, cfg: dict, out_dir: Path, scenes_dir: Path, a: argparse
             # сигнатура пишется только после успешного реза: следующий прогон с теми же
             # параметрами пропускает рез, сменились параметры -> переэнкод
             sig_path.write_text(sig, encoding="utf-8")
+            # какой энкод реально работал (NVENC / libx264) — в лог GUI
+            row["reason"] = codec_note
     return row
 
 

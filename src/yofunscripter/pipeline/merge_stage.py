@@ -1,10 +1,15 @@
 """Stage 3: clips + sidecars -> one mp4 + one funscript.
 
-Same algorithm as `funscript_video.py`: sidecars -> filter and order -> encode segments to
-the target format -> tick offsets and seams -> merged funscript -> concat copy -> checks.
+Same algorithm as `funscript_video.py`: sidecars -> filter and order -> clip checks ->
+tick offsets and seams -> merged funscript -> concat copy -> checks. The clips are read
+**in place** with `-c copy`: stage 1 normalizes every clip at the cut (`fps/scale/
+timescale/audio` in the cut graph), so the merge encodes nothing, copies nothing, writes
+only the final file, and takes seconds instead of minutes of CPU.
+
 GUI additions: videos and sidecars live in different directories (paired by stem through
-`clips_dir`), the order is chosen by `sort_mode` (waves asc/desc, keep, random, tick_rate),
-and progress is measured in seconds of encoded segments, so the bar tracks real work.
+`clips_dir`), the order is chosen by `sort_mode` (waves asc/desc, keep, random,
+tick_rate), and progress is measured in seconds of source video, so the bar tracks real
+work.
 """
 from __future__ import annotations
 
@@ -12,19 +17,20 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import scenedetect_run as sd
+from .cancel import CancelToken
 from .funscript_check import check_payload
 from .funscript_common import write_rows
-from .funscript_concat import (check_final, concat, concat_gc, encode, load_manifest, probe,
-                               record_segment, segment_fresh)
+from .funscript_concat import (check_concat_inputs, check_final, concat, probe)
 from .funscript_merge import (load_order, merged_gap_check, merge_segments, merged_payload,
-                             write_merged)
+                              write_merged)
 from .funscript_select import SELECTION_COLUMNS, SORT_TICK_RATE, select
 from .funscript_video import SUMMARY_COLUMNS
 from .paths import layout
 from .progress import ProgressMeter
 
-ENCODE_WEIGHT = 0.85
-CONCAT_WEIGHT = 0.15
+PROBE_WEIGHT = 0.05
+CONCAT_WEIGHT = 0.95
 
 
 @dataclass
@@ -45,15 +51,24 @@ def gui_config(cfg: dict, opts: MergeOptions) -> dict:
     """Config copy with GUI dirs: artifacts in the work dir, final in `opts.out_dir`.
 
     `load_order`/`write_merged` resolve `out_dir`/`concat_dir`/`result_dir` through the
-    layout, so the algorithm functions are reused unchanged.
+    layout, so the algorithm functions are reused unchanged. The target format comes from
+    `configs/scenes.yaml` (the cut normalizes the clip to it), so the merge check and the
+    final check use the same numbers as the cut, not a second copy of them.
     """
     lay = layout()
+    scenes = sd.load_config()
     cfg = dict(cfg)
     cfg["out_dir"] = str(lay.work_dir / "funscript")
     cfg["concat_dir"] = str(lay.work_dir / "concat")
     cfg["result_dir"] = str(opts.out_dir)
     cfg["ffmpeg_bin"] = lay.ffmpeg_bin
     cfg["ffprobe_bin"] = lay.ffprobe_bin
+    cfg["target_width"] = scenes["target_width"]
+    cfg["target_height"] = scenes["target_height"]
+    cfg["target_fps"] = scenes["target_fps"]
+    cfg["video_track_timescale"] = scenes["timescale"]
+    cfg["audio_rate"] = scenes["audio_rate"]
+    cfg["audio"] = scenes["audio"]
     return cfg
 
 
@@ -95,24 +110,26 @@ def plan(cfg: dict, opts: MergeOptions) -> dict:
             "total_ms": total_ms, "rows": rows}
 
 
-def run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dict:
+def run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
+        token: "CancelToken | None" = None) -> dict:
     """`_run` with SystemExit -> ValueError: ffmpeg failures are reported as one line.
 
     The vendored code raises SystemExit on ffmpeg errors and on "nothing selected"; in the
     app that must not kill the process, so the exception is converted at this boundary.
+    `Cancelled` (the user pressed Cancel) passes through untouched.
     """
     try:
-        return _run(cfg, opts, on_progress=on_progress, on_log=on_log)
+        return _run(cfg, opts, on_progress=on_progress, on_log=on_log, token=token)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
 
 
-def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dict:
-    """Encode + concat + merged funscript; `on_progress(done_units, total_units)` in seconds.
+def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None,
+         token: "CancelToken | None" = None) -> dict:
+    """Check + concat copy + merged funscript; `on_progress(done, total)` in seconds.
 
-    Raises `ValueError` on a blocked run (no clips, nothing selected, locked output);
-    ffmpeg failures from the vendored code surface as `SystemExit` and are turned into
-    `ValueError` here, so the worker reports one clean line instead of killing the thread.
+    Raises `ValueError` on a blocked run (no clips, nothing selected, locked output,
+    clips not matching the target format); `Cancelled` when the user stops the run.
     """
     cfg = gui_config(cfg, opts)
     lay = layout()
@@ -120,6 +137,10 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
     concat_dir = lay.work_dir / "concat"
     work_dir.mkdir(parents=True, exist_ok=True)
     concat_dir.mkdir(parents=True, exist_ok=True)
+    for legacy in concat_dir.glob("*.mp4"):
+        # segments of the old merge (encode at merge time) are pure trash now
+        legacy.unlink(missing_ok=True)
+
     opts.out_dir.mkdir(parents=True, exist_ok=True)
 
     clips = list_clips(opts)
@@ -127,11 +148,6 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
         raise ValueError(f"no clips in {opts.clips_dir} ({opts.pattern})")
 
     t0 = time.time()
-    present = {q.stem for q in clips}
-    removed, freed = concat_gc(concat_dir, present)
-    if removed and on_log is not None:
-        on_log(f"concat cache: {len(removed)} stale segments removed, {freed / 1e6:.0f} MB")
-
     sidecars = pair_sidecars(opts, clips, on_log)
     if not sidecars:
         raise ValueError(f"no sidecars for the clips of {opts.clips_dir} in {opts.scripts_dir}")
@@ -150,38 +166,37 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
                f"(min_waves {opts.min_waves}, sort {opts.sort_mode}): {order}"
                + (" ..." if len(kept) > 6 else ""))
 
-    manifest = load_manifest(concat_dir)
+    # the clips are measured as they are: `concat -c copy` needs identical codec
+    # parameters, and the only way to fix a clip that differs is to re-cut it in stage 1
+    infos: list[tuple[Path, dict]] = []
     encoded: dict[str, int] = {}
-    segment_paths: list[Path] = []
     summary: list[dict] = []
-    reencoded = 0
     for r in kept:
+        if token is not None:
+            token.check()
         clip = Path(r["clip"])
-        out = concat_dir / (r["name"] + ".mp4")
-        key = r["name"]
-        if opts.force or not segment_fresh(out, clip, cfg, manifest):
-            hook = (lambda sec, key=key, dur=dur_s[key]: meter.set(key, ENCODE_WEIGHT * min(sec, dur))
-                    if meter is not None else None)
-            info = encode(clip, out, cfg, hook)
-            reencoded += 1
-            encoded_ms = int(info["duration_ms"])
-        else:
-            encoded_ms = int(probe(out, cfg)["duration_ms"])
+        info = probe(clip, cfg)
+        infos.append((clip, info))
+        encoded[r["name"]] = int(info["duration_ms"])
         if meter is not None:
-            meter.set(key, ENCODE_WEIGHT * dur_s[key])
-        record_segment(concat_dir, out, clip, encoded_ms, cfg)
-        encoded[r["name"]] = encoded_ms
-        segment_paths.append(out)
-        summary.append({"order": r["order"], "name": r["name"], "segment_out": str(out),
+            meter.set(r["name"], PROBE_WEIGHT * dur_s[r["name"]])
+        summary.append({"order": r["order"], "name": r["name"], "segment_out": str(clip),
                         "sidecar": r["sidecar"], "waves": r["waves"],
                         "wave_rate": r["wave_rate"], "tick_rate": r["tick_rate"],
-                        "source_ms": r["duration_ms"], "encoded_ms": encoded_ms,
+                        "source_ms": r["duration_ms"], "encoded_ms": encoded[r["name"]],
                         "offset_ms": "", "ticks": r["ticks"],
-                        "status": "encoded", "reason": ""})
-    if on_log is not None:
-        on_log(f"encoded {reencoded} of {len(kept)} segments, "
-               f"{len(kept) - reencoded} from cache ({time.time() - t0:.0f} s)")
+                        "status": "checked", "reason": ""})
 
+    problems = check_concat_inputs(infos, cfg)
+    if problems:
+        for line in problems[:12]:
+            if on_log is not None:
+                on_log(line)
+        raise ValueError(f"{len(problems)} clips do not match the target format — clips "
+                        f"are normalized at the scene cut, re-cut them in stage 1: "
+                        f"{'; '.join(problems[:4])}")
+
+    clip_paths = [Path(r["clip"]) for r in kept]
     target = opts.out_dir / (opts.name + ".mp4")
     if target.exists():
         try:
@@ -193,7 +208,7 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
 
     concat_hook = (lambda sec: meter.set("concat", CONCAT_WEIGHT * min(sec, total_s))
                    if meter is not None else None)
-    concat(segment_paths, target, cfg, concat_hook)
+    concat(clip_paths, target, cfg, concat_hook, concat_dir, token)
     if meter is not None:
         meter.set("concat", CONCAT_WEIGHT * total_s)
 
@@ -227,16 +242,6 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
                         f"ticks {len(merged)} = segments {src_ticks} - removed {drops} "
                         f"(seams {seams}, per seam {per_seam}) + phase {added}"))
 
-    summary.append({"order": "", "name": opts.name, "segment_out": str(target),
-                    "sidecar": str(sidecar_out),
-                    "waves": payload["metadata"]["waves"],
-                    "wave_rate": payload["metadata"]["wave_rate"],
-                    "tick_rate": round(len(merged) / (final_ms / 1000), 3),
-                    "source_ms": sum(int(s["source_ms"]) for s in segments),
-                    "encoded_ms": final_ms, "offset_ms": "", "ticks": len(merged),
-                    "status": "merged", "reason": ""})
-    write_rows(work_dir / "video_summary.csv", SUMMARY_COLUMNS, summary)
-
     fails = 0
     for ok, line in results:
         if on_log is not None:
@@ -251,7 +256,7 @@ def _run(cfg: dict, opts: MergeOptions, *, on_progress=None, on_log=None) -> dic
                f"{payload['metadata']['waves']} ({payload['metadata']['wave_rate']} waves/s), "
                f"{elapsed:.0f} s -> {target}")
     return {"clips": len(clips), "sidecars": len(sidecars), "selected": len(kept),
-            "encoded": reencoded, "final_ms": final_ms, "ticks": len(merged),
+            "checked": len(kept), "final_ms": final_ms, "ticks": len(merged),
             "waves": payload["metadata"]["waves"], "fails": fails,
             "elapsed_s": round(elapsed, 1), "video": str(target),
             "sidecar_out": str(sidecar_out),

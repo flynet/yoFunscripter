@@ -7,7 +7,9 @@ tab: language, color scheme, jobs/threads, device, the YOLO model; the status ba
 the Check for updates button.
 
 A stage runs in a worker thread; the Start buttons are locked while it runs, so two stages
-cannot write the same folder at the same time.
+cannot write the same folder at the same time, and the Cancel button of the running card
+stops it (`StageWorker.cancel()` -> the cancel token kills the ffmpeg children ->
+`Cancelled` -> the window unlocks).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from yofunscripter.config.paths import app_data_root, install_layout
 from yofunscripter.config.settings import Settings, save_settings
 from yofunscripter.i18n import current_language, tr
 from yofunscripter.pipeline import funscript_stage, merge_stage, scenes_stage
+from yofunscripter.pipeline.cancel import CancelToken
 from yofunscripter.pipeline.paths import Layout
 from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
@@ -84,6 +87,8 @@ class MainWindow(QMainWindow):
         self.scenes_card.start.clicked.connect(self._start_scenes)
         self.scripts_card.start.clicked.connect(self._start_scripts)
         self.merge_card.start.clicked.connect(self._start_merge)
+        for card in (self.scenes_card, self.scripts_card, self.merge_card):
+            card.cancel.clicked.connect(self._cancel)
         self.panel.browse_model.clicked.connect(self.panel.pick_model)
         self.panel.reset_model.clicked.connect(self._reset_model)
         # the settings are applied by the Save button of the panel, not by a change of
@@ -117,7 +122,8 @@ class MainWindow(QMainWindow):
         opts = scenes_stage.ScenesOptions(
             source=row.path(), out_dir=self.scenes_card.rows[1].path(),
             pattern=self.settings.pattern_scenes, jobs=self.settings.jobs,
-            force=self.settings.force, no_check=self.settings.no_check)
+            force=self.settings.force, no_check=self.settings.no_check,
+            device=self.settings.device)
         self._launch(tr("stage_scenes"), scenes_stage.run,
                      scenes_stage.load_scenes_config(), opts, opts.source, opts.out_dir,
                      "unit_seconds")
@@ -164,16 +170,26 @@ class MainWindow(QMainWindow):
         self.log(tr("stage_start", stage=stage, source=source, out=out))
         self.progress.start(stage, unit_key)
         self._set_buttons(True)
-        self.worker = StageWorker(stage, fn, cfg, opts, self)
+        self.token = CancelToken()
+        self.worker = StageWorker(stage, fn, cfg, opts, token=self.token, parent=self)
         self.worker.progress.connect(self.progress.update)
         self.worker.logged.connect(self.log)
         self.worker.finished_ok.connect(lambda summary: self._finished(stage, summary))
         self.worker.failed.connect(lambda reason: self._failed(stage, reason))
+        self.worker.cancelled.connect(lambda: self._cancelled(stage))
         self.worker.start()
+
+    def _cancel(self) -> None:
+        """«Отмена» of the run that is going: the token flips and kills its ffmpeg children."""
+        if self.worker is None or not self.worker.isRunning():
+            return
+        self.worker.cancel()
+        self.log(tr("cancel"))
 
     def _set_buttons(self, running: bool) -> None:
         for card in (self.scenes_card, self.scripts_card, self.merge_card):
             card.start.setEnabled(not running)
+            card.cancel.setEnabled(running)
 
     def _finished(self, stage: str, summary: dict) -> None:
         out = summary.get("out_dir") or summary.get("video") or summary.get("report") or ""
@@ -184,6 +200,12 @@ class MainWindow(QMainWindow):
 
     def _failed(self, stage: str, reason: str) -> None:
         self.log(tr("stage_failed", stage=stage, reason=reason))
+        self.progress.finish(False)
+        self._set_buttons(False)
+
+    def _cancelled(self, stage: str) -> None:
+        """The user stopped the run: the console says it, the window is unlocked."""
+        self.log(tr("stage_cancelled", stage=stage))
         self.progress.finish(False)
         self._set_buttons(False)
 

@@ -13,6 +13,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .cancel import Cancelled, CancelToken
 from .funscript_build import build_clip
 from .funscript_common import (TRACK_COLUMNS, frame_ms_of, load_config, load_model,
                                sha1_short, video_duration_ms, video_fps_frames, write_rows)
@@ -84,10 +85,14 @@ def plan(opts: ScriptsOptions) -> list[dict]:
     return rows
 
 
-def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> dict:
+def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None,
+        token: "CancelToken | None" = None) -> dict:
     """Generate sidecars for all clips; `on_progress(done_frames, total_frames)`.
 
     Units are frames, so a single long clip moves the bar, not only a finished file.
+    `token` — the user's Cancel: `Cancelled` is raised at the clip boundary and inside the
+    frame loop of the clip that is tracking now, so the run stops without writing the
+    rest of the sidecars.
     """
     clips = list_clips(opts)
     if not clips:
@@ -120,6 +125,8 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> di
     rows: list[dict] = []
     t_start = time.time()
     for i, clip in enumerate(clips, 1):
+        if token is not None:
+            token.check()
         sidecar = sidecar_of(clip, opts.scripts_dir)
         if not opts.force and sidecar_current(clip, opts.scripts_dir):
             meter.set(str(clip), frames_of[clip]) if meter else None
@@ -130,6 +137,8 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> di
         t0 = time.time()
         try:
             def on_frame(done: int, total: int) -> None:
+                if token is not None:
+                    token.check()
                 if meter is not None:
                     meter.set(str(clip), done)
             duration_ms = video_duration_ms(clip)
@@ -155,6 +164,9 @@ def run(cfg: dict, opts: ScriptsOptions, *, on_progress=None, on_log=None) -> di
                 on_log(f"[{i}/{len(clips)}] {clip.name}: ticks {row['ticks']}, track "
                        f"{row['chosen_track']} ({row['chosen_class']}), "
                        f"{row['elapsed_s']} s" + (f" -> {row['reason']}" if row["reason"] else ""))
+        except Cancelled:
+            # the user stopped the run: this clip is not written, and the stage unwinds
+            raise
         except Exception as exc:            # one bad clip does not kill the batch
             rows.append(_error_row(clip, sidecar, model_version, exc,
                                    round(time.time() - t0, 2)))

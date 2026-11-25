@@ -8,13 +8,14 @@ TEXTS = {
     # The three stages of the window, each card with its folders and its button.
     "stage_scenes": "Cut scenes",
     "stage_scenes_hint": "Videos are cut into scenes by PySceneDetect and ffmpeg "
-                         "(frame-accurate trim), one ffmpeg pass per video.",
+                         "(frame-accurate trim), one ffmpeg pass per video. Every clip is "
+                         "normalized here, once: fps, size, audio.",
     "stage_scripts": "Generate funscripts",
     "stage_scripts_hint": "Each clip is tracked by YOLO and a `.funscript` sidecar is "
                           "written for it, next to the model of the settings.",
     "stage_merge": "Merge",
     "stage_merge_hint": "Selected clips are encoded to one format, concatenated without "
-                        "re-encoding, and one merged funscript is written.",
+                         "Selected clips are read in place and concatenated with `-c copy`: no re-encoding, no copies — the clips are already normalized at the cut — and one merged funscript is written.",
 
     "label_source_videos": "Source videos",
     "label_scenes_out": "Scenes folder",
@@ -24,6 +25,7 @@ TEXTS = {
     "browse": "Browse…",
     "open_folder": "Open",
     "start": "Start",
+    "cancel": "Cancel",
     "running": "Running…",
 
     "min_waves": "Min waves (0 = no filter)",
@@ -71,6 +73,7 @@ TEXTS = {
     "stage_start": "▶ {stage}: {source} → {out}",
     "stage_done": "✔ {stage}: done in {elapsed} → {out}",
     "stage_failed": "✖ {stage}: {reason}",
+    "stage_cancelled": "⛔ {stage}: stopped by the user",
 
     # Messages of the window.
     "pick_source_first": "Pick the folder of the source videos first.",
