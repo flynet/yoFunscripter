@@ -5,18 +5,14 @@ TEXTS = {
     "tab_main": "Main",
     "tab_settings": "Settings",
 
-    # The three stages of the window, each card with its folders and its button.
+    # The three stages of the window: the title and one short line of what it does. The
+    # full explanation is the tooltip of the card, so the line stays one line.
     "stage_scenes": "Cut scenes",
-    "stage_scenes_hint": "A movie is cut into scenes, one file per scene. Every clip is "
-                          "written in one format (30 fps, size, audio), so the clips can be "
-                          "merged without re-encoding.",
+    "stage_scenes_hint": "cuts a movie into clips of one format",
     "stage_scripts": "Generate funscripts",
-    "stage_scripts_hint": "For every clip the movement track is computed — the `.funscript` "
-                          "file. It is named like the clip and lives in its own folder.",
+    "stage_scripts_hint": "writes a .funscript track for every clip",
     "stage_merge": "Merge",
-    "stage_merge_hint": "The chosen clips are joined into one movie and one `.funscript` "
-                         "track. Nothing is re-encoded: the clips are read as they are, so "
-                         "the merge takes seconds.",
+    "stage_merge_hint": "joins the chosen clips into one movie and one track",
 
     "label_source_videos": "Source videos",
     "label_scenes_out": "Scenes folder",
@@ -50,8 +46,8 @@ TEXTS = {
     "start_tip": "Start this stage.",
     "cancel_tip": "Stop the stage that is running.",
 
-    "min_waves": "Min waves (0 = no filter)",
-    "max_waves": "Max waves (0 = no limit)",
+    "min_waves": "Min waves",
+    "max_waves": "Max waves",
     "sort_mode": "Order of clips",
     "result_name": "Result name",
     "pattern_clips": "Clip pattern",
@@ -79,17 +75,17 @@ TEXTS = {
     "theme_neon": "Neon",
     "theme_cartoons": "Cartoons",
     "theme_pink": "Pink",
-    "jobs": "Movies cut at once (stage 1)",
-    "threads": "YOLO threads (stage 2)",
+    "jobs": "Stage 1: movies at once",
+    "threads": "Stage 2: threads",
     "device": "Device for YOLO",
-    "device_auto": "Auto (GPU if there is one)",
+    "device_auto": "Auto (if GPU)",
     "device_cpu": "CPU",
     "device_cuda": "CUDA",
     "model": "YOLO model",
     "model_default": "Default: {path}",
-    "model_reset": "Reset to the default model",
+    "model_reset": "Default model",
     "model_bundled": "bundled default",
-    "force": "Do it again: cut the scenes and compute the .funscript files",
+    "force": "Do it again (recompute finished files)",
     "no_check": "Skip the checks of the result",
     "apply": "Apply",
     "jobs_tip": "How many movies are cut into scenes at the same time. 1 = one after "

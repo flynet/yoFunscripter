@@ -31,7 +31,7 @@ from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
 from yofunscripter.ui.theme import apply_theme
-from yofunscripter.ui.widgets import ConsolePanel, fmt_time, set_row_floor
+from yofunscripter.ui.widgets import CONSOLE_MIN_HEIGHT, ConsolePanel, fmt_time, set_row_floor
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
 from yofunscripter.workers import StageWorker
@@ -56,6 +56,10 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self.main_tab = QWidget()
         main_layout = QVBoxLayout(self.main_tab)
+        # the cards are blocks of their own: the window spends its height on the rows,
+        # not on the gaps between them
+        main_layout.setContentsMargins(6, 6, 6, 6)
+        main_layout.setSpacing(6)
 
         self.scenes_card = scenes_card((self.layout.root, self.layout.scenes_dir), settings)
         self.scripts_card = scripts_card((self.layout.scenes_dir, self.layout.scripts_dir),
@@ -72,8 +76,10 @@ class MainWindow(QMainWindow):
         self.console = ConsolePanel()
         main_layout.addWidget(self.console, 1)
         # the rows of the cards keep the height their text asks for, so a short window
-        # shrinks the console, not the text of the folders
+        # shrinks the console, not the text of the folders: the console is the row that
+        # gives way, and its floor is the readable minimum, not the size hint
         set_row_floor(main_layout)
+        self.console.setMinimumHeight(CONSOLE_MIN_HEIGHT + 30)
         self.tabs.addTab(self.main_tab, tr("tab_main"))
 
         self.panel = SettingsPanel(settings, self.layout.model_path)

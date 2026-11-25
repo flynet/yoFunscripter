@@ -16,7 +16,8 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from PySide6.QtWidgets import QComboBox, QLineEdit, QSpinBox, QApplication, QWidget
+from PySide6.QtWidgets import (QComboBox, QLineEdit, QPushButton, QSpinBox, QApplication,
+                               QWidget)
 
 from yofunscripter.config.settings import Settings
 from yofunscripter.i18n import set_language
@@ -80,7 +81,39 @@ def main() -> int:
               for card in cards for row in card.rows),
           "the folder labels keep the floor of their text")
     check(win.scenes_card.start.toolTip() and win.scenes_card.cancel.toolTip(),
-          "Start and Cancel explain themselves")
+          "the stage buttons explain themselves")
+    check(all(card.start.accessibleName() and card.cancel.accessibleName()
+              for card in cards),
+          "the glyph buttons are named for the reader")
+
+    # the stage buttons ride the last folder row, so a card spends no row on them
+    same_row = all(card.start.y() == card.rows[-1].edit.y() and
+                   card.cancel.y() == card.rows[-1].edit.y() for card in cards)
+    check(same_row, "the stage buttons sit on the row of the folder")
+
+    # the title and the hint are one line of the card, not two
+    one_line = all(abs(card.head_label.y() - card.hint_label.y()) <= 2 for card in cards)
+    check(one_line, "the title and the hint of a card share one line")
+
+    # a hint is one line of text: it has the height of that line, and the full
+    # explanation is its tooltip
+    hints = [card.hint_label for card in cards]
+    # one line: the height is the height of the line, plus the label margin Qt adds
+    check(all(h.height() <= h.fontMetrics().height() + 2 for h in hints),
+          "every hint of a card is one line")
+    check(all(h.toolTip() for h in hints), "the full text of a stage is in its tooltip")
+
+    # the text of a button must fit its box: no clipped word, no wrapped word
+    buttons = [w for w in widgets if isinstance(w, QPushButton)]
+    clipped = [b for b in buttons
+               if b.contentsRect().height() < b.fontMetrics().height()
+               or b.contentsRect().width() < b.fontMetrics().horizontalAdvance(b.text())]
+    check(not clipped, f"no button clips its text ({len(buttons)} buttons, "
+                       f"{len(clipped)} too small)")
+    for b in clipped:
+        print("      clipped:", b.objectName(), repr(b.text()),
+              b.contentsRect().width(), b.contentsRect().height(),
+              b.fontMetrics().horizontalLength(b.text()), b.fontMetrics().height())
 
     combo = win.merge_card.extra.sort
     check(combo.count() == len(SORT_LABEL_KEYS), "the order combo lists every order")

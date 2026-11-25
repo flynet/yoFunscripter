@@ -37,7 +37,9 @@ class SettingsPanel(QWidget):
         super().__init__(parent)
         self.settings = settings
         layout = QVBoxLayout(self)
+        layout.setSpacing(6)
         grid = QGridLayout()
+        grid.setSpacing(4)
         grid.setColumnStretch(1, 1)
         row = 0
 
@@ -94,12 +96,11 @@ class SettingsPanel(QWidget):
         self.browse_model.setObjectName("browse")
         self.browse_model.setToolTip(tr("browse_tip"))
         grid.addWidget(self.browse_model, row, 2)
-        row += 1
-
+        # «Reset» is the other half of the same field, so it rides the same row
         self.reset_model = QPushButton(tr("model_reset"))
         self.reset_model.setObjectName("browse")
         self.reset_model.setToolTip(tr("model_tip"))
-        grid.addWidget(self.reset_model, row, 1)
+        grid.addWidget(self.reset_model, row, 3)
         row += 1
 
         self.force = QCheckBox(tr("force"))

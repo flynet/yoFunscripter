@@ -24,6 +24,7 @@ class ProgressPanel(QFrame):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
         self.bar = QProgressBar()
         self.bar.setRange(0, 100)
         self.bar.setValue(0)

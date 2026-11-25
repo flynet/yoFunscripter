@@ -99,7 +99,7 @@ QPlainTextEdit#console {{
 }}
 QFrame#card {{
     background: {panel}; border: 1px solid {border}; border-radius: 6px;
-    padding: 8px;
+    padding: 4px;
 }}
 QLabel#cardTitle {{ color: {text}; font-size: 10pt; font-weight: bold; }}
 QLabel#cardHint {{ color: {muted}; font-size: 9pt; }}
@@ -108,7 +108,7 @@ QLabel#pathValue {{ color: {muted}; font-size: 9pt; }}
 QLabel#progressLabel {{ color: {text}; font-weight: bold; }}
 QPushButton {{
     background: {accent}; color: #ffffff; border: 1px solid {border};
-    border-radius: 4px; padding: 6px 12px;
+    border-radius: 4px; padding: 3px 9px; min-height: 14px;
 }}
 QPushButton:hover {{ background: {accent_hover}; }}
 QPushButton:pressed {{ background: {accent_pressed}; }}
@@ -118,6 +118,11 @@ QPushButton#browse {{
 }}
 QPushButton#browse:hover {{ background: {border}; }}
 QPushButton#danger {{ background: {error}; }}
+/* the stage buttons are glyphs, not words: the box is the size of the glyph */
+QPushButton#media, QPushButton#mediaDanger {{
+    padding: 2px 5px; min-width: 20px; min-height: 16px;
+}}
+QPushButton#mediaDanger {{ background: {error}; }}
 QCheckBox {{ color: {text}; }}
 QGroupBox {{ color: {text}; border: 1px solid {border}; border-radius: 4px; }}
 QProgressBar {{
@@ -132,7 +137,7 @@ QStatusBar {{ background: {panel}; color: {text}; }}
 QStatusBar QLabel {{ color: {text}; }}
 QSpinBox, QComboBox, QLineEdit {{
     background: {background}; color: {text}; border: 1px solid {border};
-    border-radius: 4px; padding: 3px;
+    border-radius: 4px; padding: 2px;
 }}
 QSpinBox::up-button, QSpinBox::down-button {{
     background: {panel}; border-left: 1px solid {border};
@@ -143,7 +148,7 @@ QComboBox QAbstractItemView {{
 }}
 QTabWidget::pane {{ border: 1px solid {border}; }}
 QTabBar::tab {{
-    background: {panel}; color: {text}; padding: 5px 12px;
+    background: {panel}; color: {text}; padding: 4px 10px;
     border: 1px solid {border}; border-bottom: none;
 }}
 QTabBar::tab:selected {{ background: {background}; color: {text}; }}

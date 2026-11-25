@@ -24,13 +24,13 @@ State of the project, in the order of what is left.
   nothing): the path is unit-tested, and it has not been run against real clips in this app
   — the design and the numbers are measured in `D:\Java\yolo` (concat copy of normalized
   clips, dts of the final = 0, container tail = AAC priming only).
-- **Cancel** in the window (offscreen, Qt only, no CPU work): each card has «Cancel»
-  (`QPushButton#danger`), it is enabled only while a run is going, `_cancel()` with no
-  worker does nothing, and `_cancelled` writes `⛔ Merge: stopped by the user` to the
-  console and the status line and unlocks the buttons. Cancel kills the registered ffmpeg
-  children and stops the stage at the loop boundaries (video, clip, progress hook); the
-  detect pass of stage 1 decodes in-process (PySceneDetect), so it is not interruptible —
-  the stage stops right after it.
+- **Cancel** in the window (offscreen, Qt only, no CPU work): each card has the square
+  (`QPushButton#mediaDanger`) at the end of its last folder row, it is enabled only while a
+  run is going, `_cancel()` with no worker does nothing, and `_cancelled` writes
+  `⛔ Merge: stopped by the user` to the console and the status line and unlocks the
+  buttons. Cancel kills the registered ffmpeg children and stops the stage at the loop
+  boundaries (video, clip, progress hook); the detect pass of stage 1 decodes in-process
+  (PySceneDetect), so it is not interruptible — the stage stops right after it.
 - 81 unit tests pass (0.7 s, no ffmpeg, no torch): settings (atomic save, backup,
   clamping, the default theme `neon`), the updater (release parsing, version compare,
   SHA-256, resume of a partial download, `Cancelled` out of the download loop with the
@@ -46,10 +46,13 @@ State of the project, in the order of what is left.
 - **The window, checked offscreen** (`tools/smoke_window.py`): the default theme is neon
   (window palette read `#0e0e1a`), the default language is English, every control has a
   tooltip (66 in the window), the folder fields keep `minWidth 220` and the labels the
-  floor of their text, the minimum window is `900x1142`, the console keeps 60 px, the
-  order combo shows the meaning of the order that is chosen, and no text of the catalogues
-  says `sidecar`, `tick_rate`, `ffmpeg`, `torch`. The console lines of all three stages are
-  in the language of the window.
+  floor of their text, the minimum window is `795x721` (`900x1142` before the rows were
+  compacted), the console keeps 60 px, the play arrow and the square of a stage sit on the
+  row of the last folder, the title and the hint of a card share one line, every hint is
+  one line of text, no button clips its text (27 buttons measured), the order combo shows
+  the meaning of the order that is chosen, and no text of the catalogues says `sidecar`,
+  `tick_rate`, `ffmpeg`, `torch`. The console lines of all three stages are in the language
+  of the window.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,

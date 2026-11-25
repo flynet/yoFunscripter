@@ -1,10 +1,12 @@
 """The three cards of the main tab: Cut scenes, Generate funscripts, Merge.
 
-Each card is the title, the hint of what the stage does, the rows of its folders, the
-options of the stage (waves filter, order of clips, result name), a Start button and a
-Cancel button (enabled only while a run of this card is going). The rows keep the paths
-the user picked; an empty row is the default folder relative to the install dir, and the
-placeholder shows that default.
+Each card is one line of text (the title and what the stage does), the rows of its
+folders, the options of the stage (waves filter, order of clips, result name), and the
+two stage buttons at the end of the last folder row: the play arrow runs the stage, the
+square stops it, the same glyphs as any video player. A word («Start», «Cancel») takes a
+row of its own, a glyph does not, so the window stays short; the name of each button is
+in its tooltip. The rows keep the paths the user picked; an empty row is the default
+folder relative to the install dir, and the placeholder shows that default.
 
 Every line of the card carries its own tooltip (`*_tip` keys of the catalog), so a
 person who does not know the words of the pipeline sees what a setting does without
@@ -17,11 +19,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QPushButton, QSpinBox, QVBoxLayout, QWidget)
+                               QPushButton, QSpinBox, QStyle, QVBoxLayout, QWidget)
 
 from yofunscripter.i18n import tr
 from yofunscripter.pipeline.funscript_select import SORT_LABEL_KEYS, SORT_MODES
-from yofunscripter.ui.widgets import DirRow, set_row_floor
+from yofunscripter.ui.widgets import DirRow, media_button, set_row_floor
 
 #: The tooltip of each order, so the combo explains itself: «waves» and «ticks» are the
 #: two numbers a person has to tell apart. The labels of the modes are in
@@ -30,41 +32,47 @@ SORT_TIP_KEYS = {mode: SORT_LABEL_KEYS[mode] + "_tip" for mode in SORT_LABEL_KEY
 
 
 class StageCard(QFrame):
-    """Title, hint, folder rows, extra options, Start and Cancel buttons."""
+    """One line of text, the folder rows with the stage buttons, the extra options."""
 
     def __init__(self, title: str, hint: str, tip: str, rows: list[DirRow],
-                 extra: QWidget | None, start_label: str,
-                 parent: QWidget | None = None) -> None:
+                 extra: QWidget | None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("card")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        head = QLabel(title)
-        head.setObjectName("cardTitle")
-        head.setToolTip(tip)
-        layout.addWidget(head)
+        # the card is one block of text, not a stack of gaps: the title and the hint
+        # share the first line, and the rows sit on 4 px of spacing
+        layout.setContentsMargins(8, 5, 8, 5)
+        layout.setSpacing(4)
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        head_label = QLabel(title)
+        head_label.setObjectName("cardTitle")
+        head_label.setToolTip(tip)
+        head.addWidget(head_label)
         hint_label = QLabel(hint)
         hint_label.setObjectName("cardHint")
-        hint_label.setWordWrap(True)
         hint_label.setToolTip(tip)
-        layout.addWidget(hint_label)
+        head.addWidget(hint_label, 1)
+        layout.addLayout(head)
         for row in rows:
             layout.addWidget(row)
         if extra is not None:
             layout.addWidget(extra)
-        self.start = QPushButton(start_label)
-        self.start.setToolTip(tr("start_tip"))
-        self.cancel = QPushButton(tr("cancel"))
-        self.cancel.setObjectName("danger")
-        self.cancel.setToolTip(tr("cancel_tip"))
+        # the stage buttons ride the last folder row: a play arrow and a square, the
+        # glyphs of a player, no word, so no row is spent on them
+        self.start = media_button(QStyle.StandardPixmap.SP_MediaPlay, tr("start_tip"),
+                                  tr("start"), self)
+        self.cancel = media_button(QStyle.StandardPixmap.SP_MediaStop, tr("cancel_tip"),
+                                   tr("cancel"), self)
+        self.cancel.setObjectName("mediaDanger")
         self.cancel.setEnabled(False)          # the button is for a run that is going
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.start)
-        buttons.addWidget(self.cancel)
-        layout.addLayout(buttons)
+        rows[-1].add_tail(self.start)
+        rows[-1].add_tail(self.cancel)
         set_row_floor(layout)
         self.rows = rows
         self.extra = extra
+        self.head_label = head_label
+        self.hint_label = hint_label
 
 
 class MergeOptionsWidget(QWidget):
@@ -75,6 +83,8 @@ class MergeOptionsWidget(QWidget):
         super().__init__(parent)
         grid = QGridLayout(self)
         grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(4)
+        grid.setColumnStretch(1, 1)
         self.min_waves = QSpinBox()
         self.min_waves.setRange(0, 1000)
         self.min_waves.setValue(min_waves)
@@ -128,7 +138,7 @@ def scenes_card(defaults: tuple[Path, Path], settings) -> StageCard:
     rows[0].set_path(settings.scenes_in)
     rows[1].set_path(settings.scenes_out)
     return StageCard(tr("stage_scenes"), tr("stage_scenes_hint"), tr("stage_scenes_tip"),
-                     rows, None, tr("start"))
+                     rows, None)
 
 
 def scripts_card(defaults: tuple[Path, Path], settings) -> StageCard:
@@ -138,7 +148,7 @@ def scripts_card(defaults: tuple[Path, Path], settings) -> StageCard:
     rows[0].set_path(settings.scripts_in)
     rows[1].set_path(settings.scripts_out)
     return StageCard(tr("stage_scripts"), tr("stage_scripts_hint"), tr("stage_scripts_tip"),
-                     rows, None, tr("start"))
+                     rows, None)
 
 
 def merge_card(defaults: tuple[Path, Path, Path], settings) -> StageCard:
@@ -152,4 +162,4 @@ def merge_card(defaults: tuple[Path, Path, Path], settings) -> StageCard:
     extra = MergeOptionsWidget(settings.min_waves, settings.max_waves, settings.sort_mode,
                                settings.result_name)
     return StageCard(tr("stage_merge"), tr("stage_merge_hint"), tr("stage_merge_tip"),
-                     rows, extra, tr("start"))
+                     rows, extra)

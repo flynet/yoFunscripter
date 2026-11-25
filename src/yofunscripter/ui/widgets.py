@@ -11,8 +11,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QFileDialog, QLayout, QHBoxLayout, QLabel, QLineEdit,
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtWidgets import (QFileDialog, QLayout, QStyle, QHBoxLayout, QLabel, QLineEdit,
                                QPlainTextEdit, QPushButton, QVBoxLayout, QWidget)
 
 from yofunscripter.i18n import tr
@@ -46,6 +46,28 @@ def set_row_floor(layout: QLayout) -> None:
             set_row_floor(inner)
 
 
+#: The glyphs of the stage buttons, the size of a glyph on a button.
+MEDIA_SIZE = QSize(16, 16)
+
+
+def media_button(pixmap: QStyle.StandardPixmap, tip: str, name: str,
+                 parent: QWidget | None = None) -> QPushButton:
+    """A button of a media player: the glyph, no word.
+
+    A stage runs and stops like a video: the play arrow of «Start» and the square of
+    «Cancel» are the two glyphs a person knows from any player. A word takes a row of
+    its own, an arrow does not, and the name of the button lives in its tooltip, so
+    the meaning is one hover away.
+    """
+    button = QPushButton(parent)
+    button.setObjectName("media")
+    button.setIcon(button.style().standardIcon(pixmap))
+    button.setIconSize(MEDIA_SIZE)
+    button.setToolTip(tip)
+    button.setAccessibleName(name)
+    return button
+
+
 class ConsolePanel(QWidget):
     """The log of the window: one `append` per console line, the last lines stay visible."""
 
@@ -53,6 +75,7 @@ class ConsolePanel(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(3)
         row = QHBoxLayout()
         console_label = QLabel(tr("console"))
         console_label.setToolTip(tr("console_tip"))
@@ -73,6 +96,10 @@ class ConsolePanel(QWidget):
         layout.addWidget(self.view)
         self.clear_button.clicked.connect(self.view.clear)
         set_row_floor(layout)
+        # the log is the part of the window that gives way: its floor is the readable
+        # minimum, not the size hint, so a short window shrinks the console and never
+        # squeezes the rows of the cards
+        self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
 
     def append(self, line: str) -> None:
         self.view.appendPlainText(line)
@@ -96,6 +123,8 @@ class DirRow(QWidget):
         self.tip = tip
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        self.layout = layout
         self.label = QLabel(label)
         self.label.setMinimumWidth(120)
         self.label.setToolTip(tip)
@@ -119,6 +148,11 @@ class DirRow(QWidget):
         self.open.clicked.connect(self._open)
         layout.addWidget(self.open)
         set_row_floor(layout)
+
+    def add_tail(self, widget: QWidget) -> None:
+        """Add a widget to the end of the row: the stage buttons ride the folder row,
+        so a card does not spend a row on them."""
+        self.layout.addWidget(widget)
 
     def _show_tip(self, text: str) -> None:
         """The tooltip of the field: the path the user typed, the hint of the row when

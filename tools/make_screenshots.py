@@ -16,7 +16,7 @@ sys.path.insert(0, str(REPO / "src"))
 from PySide6.QtWidgets import QApplication
 
 from yofunscripter.config.settings import Settings
-from yofunscripter.i18n import set_language, tr
+from yofunscripter.i18n import current_language, set_language, tr
 from yofunscripter.pipeline.funscript_select import SORT_TICK_RATE
 from yofunscripter.ui.main_window import MainWindow
 from yofunscripter.ui.theme import apply_theme
@@ -30,14 +30,18 @@ def fill(win: MainWindow, values: dict[str, list[str]]) -> None:
 
 
 def shot(win: MainWindow, out: Path) -> None:
-    win.resize(1000, 760)
+    # the window is shown at its minimum height, the compact shape the app opens in
+    win.resize(1000, 700)
     win.show()
     app = QApplication.instance()
     app.processEvents()
     pix = win.grab()
     pix.save(str(out))
     win.close()
-    print(f"{out} {pix.width()}x{pix.height()}")
+    # the language of the texts is printed, so a screenshot of the wrong language is
+    # visible in the log of the tool, not in the file name
+    print(f"{out} {pix.width()}x{pix.height()} language {current_language()} "
+          f"title {win.scenes_card.head_label.text()!r}")
 
 
 def main() -> None:
