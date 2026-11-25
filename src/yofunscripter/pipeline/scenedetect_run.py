@@ -1,4 +1,4 @@
-r"""Batch: видео -> сцены -> нарезанные клипы (PySceneDetect CLI + ffmpeg).
+﻿r"""Batch: видео -> сцены -> нарезанные клипы (PySceneDetect CLI + ffmpeg).
 
 Видео из source_dir (по умолчанию video_full) режутся по границам сцен; выходы кладутся
 плоско в out_dir (по умолчанию video_source): sexy.mp4 -> sexy-s001.mp4.
@@ -63,12 +63,12 @@ from __future__ import annotations
 
 import argparse
 import csv
-import subprocess
 import sys
 import time
 
 from .progress import run_ffmpeg_progress
 from .paths import layout
+from .no_window import run as bg_run
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -113,7 +113,7 @@ def run_cli(cmd: list[str]) -> tuple[int, str]:
     errors=replace — бандл печатает в консольную кодовую страницу, и декод utf-8 на
     кириллице не должен ронять прогон. Хвост вывода нужен для причины ошибки в отчёте,
     поэтому stderr не выбрасывается."""
-    proc = subprocess.run(cmd, capture_output=True)
+    proc = bg_run(cmd, capture_output=True)
     text = proc.stdout.decode("utf-8", "replace") + proc.stderr.decode("utf-8", "replace")
     tail = " | ".join(line.strip() for line in text.splitlines() if line.strip())
     return proc.returncode, tail[-260:]
@@ -125,7 +125,7 @@ def probe_video(cfg: dict, video: Path) -> tuple[float, str]:
     format=yuv420p в графе запрещён: при crf 0 он конвертирует пиксели, и lossless
     теряется. x264 кодирует 8-битные yuv420p/yuv422p/yuv444p; 10-битные форматы
     (yuv420p10le) он не умеет, такой источник помечается пропуском."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
                            "-show_entries", "stream=avg_frame_rate,pix_fmt",
                            "-of", "default=noprint_wrappers=1", str(video)],
                           capture_output=True)
@@ -145,7 +145,7 @@ X264_FORMATS = ("yuv420p", "yuv422p", "yuv444p", "yuvj420p", "yuvj422p", "yuvj44
 
 def has_audio(cfg: dict, video: Path) -> bool:
     """ffprobe без декодирования: есть ли аудиопоток (asplit на пустом потоке падает)."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-select_streams", "a",
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", "a",
                            "-show_entries", "stream=index", "-of", "csv=p=0", str(video)],
                           capture_output=True)
     return bool(proc.stdout.decode("utf-8", "replace").strip())
@@ -153,7 +153,7 @@ def has_audio(cfg: dict, video: Path) -> bool:
 
 def probe_stream(cfg: dict, path: Path, stream: str) -> dict:
     fields = {}
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-select_streams", stream,
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", stream,
                            "-show_entries",
                            "stream=codec_name,sample_rate,channels,time_base,nb_frames,duration",
                            "-of", "default=noprint_wrappers=1", str(path)], capture_output=True)
@@ -167,7 +167,7 @@ def probe_stream(cfg: dict, path: Path, stream: str) -> dict:
 def keyframes(cfg: dict, path: Path) -> list[float]:
     """pts_time ключевых кадров (-skip_frame nokey декодирует только их). Первая строка
     ffprobe печатает с запятой («0.000000,»), поэтому запятые снимаются."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-skip_frame", "nokey",
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-skip_frame", "nokey",
                            "-select_streams", "v:0", "-show_entries", "frame=pts_time",
                            "-of", "csv=p=0", str(path)], capture_output=True)
     pts = []
@@ -181,7 +181,7 @@ def keyframes(cfg: dict, path: Path) -> list[float]:
 def min_dts(cfg: dict, path: Path) -> float | None:
     """Минимальный dts_time видеопотока: отрицательный = плеер, который открывается по
     .funscript, стартует с задержки (mp4 пишет edit list). Замер -bf 0: pts == dts = 0."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
                            "-show_entries", "packet=dts_time", "-of", "csv=p=0", str(path)],
                           capture_output=True)
     vals = [float(x.strip().strip(",")) for x in
@@ -374,7 +374,7 @@ def first_pts_time(cfg: dict, video: Path) -> float:
     """pts_time первого видеопакета: у mp4 с edit list он не ноль (замер 11 (2).mp4: 0.08 с
     = 2 кадра при 25 fps, sexy.mp4: те же 2 кадра, из-за которых `-ss 121.480` сажал ffmpeg
     на кадр 3035 вместо 3037). `-ss` отсчитывается от этого pts, поэтому рез добавляет offset."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-select_streams", "v:0",
                            "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(video)],
                           capture_output=True)
     vals = [float(x.strip().strip(",")) for x in

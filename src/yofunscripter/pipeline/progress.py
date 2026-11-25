@@ -22,6 +22,8 @@ import threading
 import time
 from pathlib import Path
 
+from .no_window import popen
+
 
 def read_progress(progress_file: Path) -> float | None:
     """out_time (seconds) from ffmpeg `-progress`: the file is appended in blocks, the
@@ -63,7 +65,7 @@ def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
     if len(cmd) >= 2 and cmd[-2] == "-o":
         idx = len(cmd) - 2
     full = cmd[:idx] + ["-progress", str(progress_file)] + cmd[idx:]
-    proc = subprocess.Popen(full, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    proc = popen(full, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     while proc.poll() is None:
         if on_seconds is not None:
             on_seconds(read_progress(progress_file) or 0.0)

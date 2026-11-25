@@ -17,17 +17,17 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 from .funscript_common import ROOT, load_config, video_duration_ms
 from .progress import run_ffmpeg_progress
+from .no_window import run as bg_run
 
 
 def ffprobe(path: Path, cfg: dict, extra: list[str]) -> dict:
     cmd = [cfg["ffprobe_bin"], "-v", "error", *extra, str(path)]
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+    r = bg_run(cmd, capture_output=True, text=True, encoding="utf-8")
     if r.returncode != 0:
         raise SystemExit(f"ffprobe {path} (код {r.returncode}): {r.stderr.strip()}")
     return json.loads(r.stdout)
@@ -77,7 +77,7 @@ def run_ffmpeg(cmd: list[str], cfg: dict, on_seconds: "callable | None" = None,
     out_time. Клиентский прогон (on_seconds=None) идёт ровно той же командой.
     """
     if on_seconds is None:
-        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+        r = bg_run(cmd, capture_output=True, text=True, encoding="utf-8")
         if r.returncode != 0:
             raise SystemExit(f"{cmd[0]} (код {r.returncode}): {r.stderr.strip()}")
         return

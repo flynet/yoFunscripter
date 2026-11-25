@@ -12,7 +12,6 @@ video, split 15% detection / 85% ffmpeg cut, so the progress bar tracks real dur
 from __future__ import annotations
 
 import argparse
-import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -21,6 +20,7 @@ from pathlib import Path
 from . import scenedetect_run as sd
 from .paths import layout
 from .progress import ProgressMeter
+from .no_window import run as bg_run
 
 DETECT_WEIGHT = 0.15
 CUT_WEIGHT = 0.85
@@ -50,9 +50,9 @@ def load_scenes_config(cfg_path: Path | None = None) -> dict:
 
 def duration_s(cfg: dict, video: Path) -> float:
     """Duration of a source video in seconds (ffprobe, no decoding)."""
-    proc = subprocess.run([cfg["ffprobe"], "-v", "error", "-show_entries", "format=duration",
-                           "-of", "default=noprint_wrappers=1", str(video)],
-                          capture_output=True)
+    proc = bg_run([cfg["ffprobe"], "-v", "error", "-show_entries", "format=duration",
+                   "-of", "default=noprint_wrappers=1", str(video)],
+                  capture_output=True)
     for line in proc.stdout.decode("utf-8", "replace").splitlines():
         if "=" in line:
             key, val = line.split("=", 1)

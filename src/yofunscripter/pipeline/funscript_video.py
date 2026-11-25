@@ -24,7 +24,6 @@ PASS/FAIL по строкам; код 1 при любом FAIL.
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -36,6 +35,7 @@ from .funscript_concat import (check_final, clean_concat, concat, concat_gc, enc
                               probe, record_segment, segment_fresh)
 from .funscript_merge import load_order, merged_gap_check, merge_segments, merged_payload, write_merged
 from .funscript_select import SELECTION_COLUMNS, select
+from .no_window import run as bg_run
 
 SUMMARY_COLUMNS = ("order", "name", "segment_out", "sidecar", "waves", "wave_rate",
                    "tick_rate", "source_ms", "encoded_ms", "offset_ms", "ticks",
@@ -51,7 +51,7 @@ def build_sidecars(source: Path, pattern: str, force: bool, cfg_path: Path | Non
         cmd += ["--cfg", str(cfg_path)]
     if force:
         cmd.append("--force")
-    code = subprocess.run(cmd).returncode
+    code = bg_run(cmd, capture_output=True).returncode
     if code != 0:
         raise SystemExit(f"funscript_run.py (код {code})")
 
