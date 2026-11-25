@@ -163,7 +163,7 @@ class MainWindow(QMainWindow):
         self._sync_merge()
         self.log(tr("stage_start", stage=stage, source=source, out=out))
         self.progress.start(stage, unit_key)
-        self._set_buttons(False)
+        self._set_buttons(True)
         self.worker = StageWorker(stage, fn, cfg, opts, self)
         self.worker.progress.connect(self.progress.update)
         self.worker.logged.connect(self.log)
@@ -180,12 +180,12 @@ class MainWindow(QMainWindow):
         elapsed = float(summary.get("elapsed_s", 0.0))
         self.log(tr("stage_done", stage=stage, elapsed=fmt_time(elapsed), out=out))
         self.progress.finish(True)
-        self._set_buttons(True)
+        self._set_buttons(False)
 
     def _failed(self, stage: str, reason: str) -> None:
         self.log(tr("stage_failed", stage=stage, reason=reason))
         self.progress.finish(False)
-        self._set_buttons(True)
+        self._set_buttons(False)
 
     # ---------------------------------------------------------------- settings
 
