@@ -120,6 +120,26 @@ State of the project, in the order of what is left.
   CUDA 'device=0'` error on every clip of the user's 21-clip run, so the device is resolved
   once at the start of stage 2 (`_device`) and the stage falls back to the CPU with one line
   in the log.
+- **torchvision in the frozen build.** The CUDA selftest died with `RuntimeError: operator
+  `torchvision::nms does not exist``: the PyInstaller hook `hook-torchvision.py` declares the
+  hidden import `torchvision._C`, and in torchvision 0.29 the extension is
+  `torchvision._C_stable`, so the build carried the `.py` files of torchvision and no
+  `.pyd`/`.dll` at all. `collect_all("torchvision")` gives the 9 binaries (`_C_stable.pyd`
+  7023616 bytes, `image_stable.pyd`, `nvjpeg64_12.dll`, `cudart64_12.dll`, `jpeg8.dll`,
+  `libpng16.dll`, `libwebp.dll`, `libsharpyuv.dll`, `zlib.dll`) and the hidden import
+  `torchvision._C_stable`, so torchvision is in the `collect_all` list of both spec files.
+  The CUDA selftest then prints `torch 2.14.1+cu126`, `cuda available True`,
+  `cuda runtime 12.6`, `device NVIDIA GeForce RTX 4060 Laptop GPU`,
+  `gpu inference ok, detections 0`, `cv2 5.1.0`, `scenedetect 0.7.3`, `numpy 2.5.4`,
+  `ultralytics 8.4.218`, `model best.pt 5550533 classes 5`, `OK`. The app does not import
+  torchvision: after `torch`, `numpy`, `cv2`, `yaml`, `scenedetect`, `ultralytics` and
+  `YOLO(best.pt)` the module table has no torchvision, and `ultralytics` has no
+  `torchvision` reference, so the defect only broke the selftest.
+  The CUDA installer measured 1791039101 bytes (the limit of a GitHub release asset is
+  2147483648 bytes), `_internal` 4624 MB with `torch` 4097 MB, of which the CUDA DLLs are
+  2390 MB (largest: `cublasLt64_12.dll` 532 MB,
+  `cudnn_engines_precompiled64_9.dll` 514 MB, `cusparse64_12.dll` 288 MB,
+  `cudnn_adv64_9.dll` 282 MB, `cufft64_11.dll` 277 MB).
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
   installer, and the window icon is set from the bundle; it has not been seen in the
   taskbar of a running packaged app.
