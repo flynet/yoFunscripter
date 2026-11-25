@@ -30,8 +30,9 @@ def fill(win: MainWindow, values: dict[str, list[str]]) -> None:
 
 
 def shot(win: MainWindow, out: Path) -> None:
-    # the window is shown at its minimum height, the compact shape the app opens in
-    win.resize(1000, 700)
+    # the app opens on the full screen, so the screenshot is of a screen-sized window:
+    # the extra height of it is the log, the rows of the folders keep their height
+    win.resize(1280, 900)
     win.show()
     app = QApplication.instance()
     app.processEvents()
@@ -70,9 +71,8 @@ def main() -> None:
                      status=tr("status_cut"), scenes=9, files=9, detect="6.0",
                      cut="18.4", reason="")):
         win.log(line)
-    # the log starts closed, so the screenshot opens it the way a user does: the block
-    # shows the lines of the run and «Clear» appears with it
-    win.console.toggle.click()
+    # the log opens with the window, so the screenshot shows the log filling the bottom
+    # of the window the way the app opens on the screen
     shot(win, out_dir / "main-en.png")
 
     s2 = Settings()

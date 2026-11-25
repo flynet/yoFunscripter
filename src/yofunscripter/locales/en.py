@@ -117,9 +117,9 @@ TEXTS = {
                     "frames at the track, seconds at the merge. The estimate comes from the "
                     "speed of this run, not from a guess.",
 
-    "console": "Console",
+    # The block of the log: one button of its state, no word «Console» on the row.
     "console_open": "Open console",
-    "console_open_tip": "Show the log of the runs. The log is hidden until it is opened.",
+    "console_open_tip": "Show the log of the runs.",
     "console_close": "Close console",
     "console_close_tip": "Hide the log; the lines stay in it and the next run adds them.",
     "clear": "Clear",

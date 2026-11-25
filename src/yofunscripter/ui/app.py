@@ -63,7 +63,10 @@ def main(argv: list[str] | None = None) -> int:
     window = MainWindow(settings)
     apply_theme(app, settings.theme)
     window.log(f"{tr('app_title')} {VERSION} · {settings_file()}")
-    window.show()
+    # the app opens on the full screen: the log is the part of the window that grows,
+    # so the room of the screen is the room of the log, and the rows of the folders keep
+    # their height. Closing the log brings the window back to the size of its content
+    window.showMaximized()
     return app.exec()
 
 

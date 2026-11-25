@@ -45,18 +45,20 @@ State of the project, in the order of what is left.
   (kill of live children, `Cancelled` out of the ffmpeg runner), the packaged layout.
 - **The window, checked offscreen** (`tools/smoke_window.py`): the default theme is neon
   (window palette read `#0e0e1a`), the default language is English, every control has a
-  tooltip (68 in the window), the folder fields keep `minWidth 220` and the labels the
-  floor of their text, the minimum window is `875x548` with the log closed, the log is the
-  rubber of the window: closed at start (one row of buttons, the window sized to its
-  content, `maximumHeight` 548 so it cannot be dragged into empty space), open it asks for
+  tooltip (67 in the window), the folder fields keep `minWidth 220` and the labels the
+  floor of their text, the app opens the window maximized (the startup calls
+  `showMaximized`), the log is open at start and is the rubber of the window: it asks for
   743 px and takes every extra pixel of a taller window (the log read 351 px in a 900 px
-  window), «Open console» ⇄ «Close console» shows and hides it with «Clear» appearing only
-  while the log is on screen, the play arrow and the square of a stage sit in the top right
-  corner of the title line of a card, the title and the hint of a card share one line,
-  every hint is one line of text, «Check for updates» and «Help» stand on the row of the
-  settings buttons (`Help` opens `github.com/flynet/yoFunscripter/issues`), no button
-  clips its text (29 buttons measured), the order combo shows the meaning of the order
-  that is chosen, and no text of the catalogues says `sidecar`, `tick_rate`, `ffmpeg`,
+  window), closing it hides the log and «Clear», shrinks the window to its content
+  (`875x548`, `minimumHeight` = `maximumHeight` = 548, so it cannot be dragged into empty
+  space), and the window leaves the full screen when its log is closed; «Open console» ⇄
+  «Close console» is one button of the row, the row carries no word «Console», «Clear» is
+  on the row only while the log is on screen, the play arrow and the square of a stage sit
+  in the top right corner of the title line of a card, the title and the hint of a card
+  share one line, every hint is one line of text, «Check for updates» and «Help» stand on
+  the row of the settings buttons (`Help` opens `github.com/flynet/yoFunscripter/issues`),
+  no button clips its text (29 buttons measured), the order combo shows the meaning of the
+  order that is chosen, and no text of the catalogues says `sidecar`, `tick_rate`, `ffmpeg`,
   `torch`. The console lines of all three stages are in the language of the window.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
@@ -222,6 +224,9 @@ State of the project, in the order of what is left.
   taskbar of a running packaged app.
 - The pink scheme has not been seen in the running window (neon and cartoons are in
   `assets/screenshots`).
+- **The window on the full screen.** The app opens maximized, and closing the log of a
+  maximized window calls `showNormal()` and shrinks the window to its content — both are
+  measured offscreen only, not in a real window on a real screen.
 
 ## Small things to keep in mind
 

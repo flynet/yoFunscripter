@@ -3,8 +3,8 @@
 A folder row is the label, the path the user picked, the «Browse…» button of the folder
 picker and «Open» of the file manager. An empty row means the default folder relative to
 the install dir, and the placeholder shows that default, so the user sees where the files
-go before he picks anything. The console panel is the log of the runs: it starts closed,
-one row of buttons tall, and opens on its own button.
+go before he picks anything. The console panel is the log of the runs: it opens with the
+window and takes every extra pixel of a taller window.
 """
 
 from __future__ import annotations
@@ -18,6 +18,9 @@ from PySide6.QtWidgets import (QFileDialog, QLayout, QStyle, QHBoxLayout, QLabel
 
 from yofunscripter.i18n import tr
 
+#: the ceiling of `setMaximumHeight` in Qt: the height a widget is allowed to have
+#: when nothing limits it
+MAX_HEIGHT = 16777215
 #: Console lines kept on screen: a long run writes thousands of lines, and the last
 #: ones are the whole story of the stage.
 CONSOLE_MAX_LINES = 2000
@@ -72,10 +75,12 @@ def media_button(pixmap: QStyle.StandardPixmap, tip: str, name: str,
 class ConsolePanel(QWidget):
     """The log of the window: one `append` per console line, the last lines stay visible.
 
-    The log starts hidden: the window of a person who runs a stage needs the folders and
-    the bar, not the text. «Open console» shows the log and turns itself into «Close
-    console», and «Clear» appears only while the log is on screen — there is nothing to
-    clear behind a hidden block.
+    The log is the rubber of the window: it opens with the window and takes every extra
+    pixel of a taller window, so a big window is a big log and never an empty box.
+    «Close console» hides the block and the window shrinks to its folders; «Clear» is on
+    the row only while the log is on screen. The row carries no word «Console»: the button
+    of the block says what it does in its own state, and the tooltip of the button is the
+    whole explanation of the block.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -84,18 +89,14 @@ class ConsolePanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(3)
         row = QHBoxLayout()
-        console_label = QLabel(tr("console"))
-        console_label.setToolTip(tr("console_tip"))
-        row.addWidget(console_label)
         row.addStretch(1)
-        self.toggle = QPushButton(tr("console_open"))
+        self.toggle = QPushButton(tr("console_close"))
         self.toggle.setObjectName("browse")
-        self.toggle.setToolTip(tr("console_open_tip"))
+        self.toggle.setToolTip(tr("console_close_tip"))
         row.addWidget(self.toggle)
         self.clear_button = QPushButton(tr("clear"))
         self.clear_button.setObjectName("browse")
         self.clear_button.setToolTip(tr("clear_tip"))
-        self.clear_button.setVisible(False)     # nothing to clear behind a hidden log
         row.addWidget(self.clear_button)
         layout.addLayout(row)
         self.view = QPlainTextEdit()
@@ -103,16 +104,14 @@ class ConsolePanel(QWidget):
         self.view.setReadOnly(True)
         self.view.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.view.setMaximumBlockCount(CONSOLE_MAX_LINES)
-        self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
         self.view.setToolTip(tr("console_tip"))
-        self.view.setVisible(False)             # the block starts closed
         layout.addWidget(self.view)
         self.clear_button.clicked.connect(self.view.clear)
         self.toggle.clicked.connect(self._toggle)
         #: the state of the block, kept as a flag: `isVisible()` of a widget in a window
         #: that is not shown yet is `False`, so the state of the log cannot be read from
         #: the widget before the window is on screen
-        self.is_open = False
+        self.is_open = True
         set_row_floor(layout)
         # the log is the part of the window that gives way: its floor is the readable
         # minimum, not the size hint, so an open log can shrink to 60 px and never
@@ -120,12 +119,16 @@ class ConsolePanel(QWidget):
         self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
         #: the row of the buttons: the whole block when the log is closed
         self.header_height = row.sizeHint().height()
-        self._apply_floor(False)
+        self._apply_floor(True)
 
     def _apply_floor(self, visible: bool) -> None:
-        """The floor of the block: the row of its buttons when the log is closed, the
-        row plus the readable height of the log when it is open. A closed log is one
-        row, not an empty box, so the window keeps its height for the folders."""
+        """The size the block is allowed to take: the row of its buttons when the log is
+        closed, the row plus the log when it is open. A hidden widget is counted in the
+        `sizeHint` of a layout, so the closed log needs the ceiling of zero height, not
+        only the floor: the window gets the height of the row and nothing more, and no
+        empty box is left where the log was.
+        """
+        self.view.setMaximumHeight(0 if not visible else MAX_HEIGHT)
         self.setMinimumHeight(self.header_height + (CONSOLE_MIN_HEIGHT if visible else 0))
 
     def _toggle(self) -> None:

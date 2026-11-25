@@ -3,8 +3,8 @@
 Main tab: three cards — Cut scenes, Generate funscripts, Merge — each with the folders it
 reads and writes and one Start button; under them the progress panel (percent of the real
 work, ETA, elapsed) and the console, which every line of a stage is written to. Settings
-tab: language, color scheme, jobs/threads, device, the YOLO model; the status bar carries
-the Check for updates button.
+tab: language, color scheme, jobs/threads, device, the YOLO model; the commands of the page
+(Revert, Restart, Check for updates, Help, Save) stand on its button row.
 
 A stage runs in a worker thread; the Start buttons are locked while it runs, so two stages
 cannot write the same folder at the same time, and the Cancel button of the running card
@@ -32,15 +32,10 @@ from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
 from yofunscripter.ui.theme import apply_theme
-from yofunscripter.ui.widgets import ConsolePanel, fmt_time, set_row_floor
+from yofunscripter.ui.widgets import ConsolePanel, MAX_HEIGHT, fmt_time, set_row_floor
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
 from yofunscripter.workers import StageWorker
-
-
-#: the ceiling of `setMaximumHeight` in Qt: the height a widget is allowed to have
-#: when nothing limits it
-MAX_HEIGHT = 16777215
 
 
 class MainWindow(QMainWindow):
@@ -127,10 +122,24 @@ class MainWindow(QMainWindow):
         self.merge_card.extra.sort.currentIndexChanged.connect(self._sync_merge)
         self.merge_card.extra.name.textChanged.connect(self._sync_merge)
 
+        # the compact height of the window: the parts of it when the log is closed.
+        # The layout of a `QMainWindow` caches its size hint, so the height of the
+        # content cannot be read back after the log has been opened, and the number is
+        # added from the tab page, the tab bar, the frame and the status line
+        self.console.show_console(False)
+        margins = self.centralWidget().layout().getContentsMargins()
+        self._compact_height = (self.tabs.sizeHint().height()
+                                + self.statusBar().sizeHint().height()
+                                + margins[1] + margins[3])
+        self.console.show_console(True)
+        self.console.clear_button.setVisible(True)
+        # the folders, the bar and the buttons of the log are the content the window
+        # shows in every state: the log shrinks to its readable minimum, the text never
+        self.setMinimumHeight(self._compact_height)
         if settings.window_geometry:
             self.restoreGeometry(QByteArray.fromHex(bytes(settings.window_geometry, "ascii")))
-        # the window is drawn in the state of the log, which is closed at start: the
-        # shape of the window and the shape of the log are one decision, not two
+        # the window is drawn in the state of the log, which is open at start: the shape
+        # of the window and the shape of the log are one decision, not two
         self._balance_console()
 
     def log(self, line: str) -> None:
@@ -143,17 +152,23 @@ class MainWindow(QMainWindow):
         gives the window, so dragging the window taller makes the log taller and the
         free space is the text, never an empty box. A closed log is one row of buttons:
         the window takes exactly the height of its content and cannot be dragged
-        taller, so nothing stands empty under the row."""
+        taller, so nothing stands empty under the row. A window that is on the full
+        screen leaves the full screen when its log is closed, for the same reason."""
         visible = self.console.is_open
         self.main_layout.setStretch(self._console_index, 1 if visible else 0)
         self.main_layout.setStretch(self._space_index, 0 if visible else 1)
         if visible:
+            self.setMinimumHeight(self.sizeHint().height())
             self.setMaximumHeight(MAX_HEIGHT)
             self.resize(self.width(), max(self.height(), self.sizeHint().height()))
         else:
-            compact = self.sizeHint().height()
-            self.setMaximumHeight(compact)
-            self.resize(self.width(), compact)
+            if self.isMaximized():
+                # the height of the screen is more than the closed log can fill, and a
+                # maximized window ignores the height it is given
+                self.showNormal()
+            self.setMinimumHeight(self._compact_height)
+            self.setMaximumHeight(self._compact_height)
+            self.resize(self.width(), self._compact_height)
 
     # ---------------------------------------------------------------- stages
 
