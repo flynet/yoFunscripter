@@ -109,6 +109,10 @@ class ConsolePanel(QWidget):
         layout.addWidget(self.view)
         self.clear_button.clicked.connect(self.view.clear)
         self.toggle.clicked.connect(self._toggle)
+        #: the state of the block, kept as a flag: `isVisible()` of a widget in a window
+        #: that is not shown yet is `False`, so the state of the log cannot be read from
+        #: the widget before the window is on screen
+        self.is_open = False
         set_row_floor(layout)
         # the log is the part of the window that gives way: its floor is the readable
         # minimum, not the size hint, so an open log can shrink to 60 px and never
@@ -126,16 +130,17 @@ class ConsolePanel(QWidget):
 
     def _toggle(self) -> None:
         """«Open console» and «Close console» are one button: it shows its own state."""
-        visible = not self.view.isVisible()
-        self.show_console(visible)
-        self.clear_button.setVisible(visible)
-        self.toggle.setText(tr("console_close" if visible else "console_open"))
-        self.toggle.setToolTip(tr("console_close_tip" if visible else "console_open_tip"))
+        self.show_console(not self.is_open)
+        self.clear_button.setVisible(self.is_open)
+        self.toggle.setText(tr("console_close" if self.is_open else "console_open"))
+        self.toggle.setToolTip(tr("console_close_tip" if self.is_open
+                                  else "console_open_tip"))
 
     def append(self, line: str) -> None:
         self.view.appendPlainText(line)
 
     def show_console(self, visible: bool) -> None:
+        self.is_open = visible
         self.view.setVisible(visible)
         self._apply_floor(visible)
 

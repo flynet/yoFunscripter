@@ -46,17 +46,18 @@ State of the project, in the order of what is left.
 - **The window, checked offscreen** (`tools/smoke_window.py`): the default theme is neon
   (window palette read `#0e0e1a`), the default language is English, every control has a
   tooltip (68 in the window), the folder fields keep `minWidth 220` and the labels the
-  floor of their text, the minimum window is `875x548` (with the log closed; `900x1142`
-  before the rows were compacted), the console keeps 60 px, the log is closed at start and
-  «Open console» ⇄ «Close console» shows and hides it with «Clear» appearing only while
-  the log is on screen and the window growing and shrinking with it, the play arrow and the
-  square of a stage sit in the top right corner of the title line of a card, the title and
-  the hint of a card share one line, every hint is one line of text, «Check for updates»
-  and «Help» stand on the row of the settings buttons (`Help` opens
-  `github.com/flynet/yoFunscripter/issues`), no button clips its text (29 buttons
-  measured), the order combo shows the meaning of the order that is chosen, and no text of
-  the catalogues says `sidecar`, `tick_rate`, `ffmpeg`, `torch`. The console lines of all
-  three stages are in the language of the window.
+  floor of their text, the minimum window is `875x548` with the log closed, the log is the
+  rubber of the window: closed at start (one row of buttons, the window sized to its
+  content, `maximumHeight` 548 so it cannot be dragged into empty space), open it asks for
+  743 px and takes every extra pixel of a taller window (the log read 351 px in a 900 px
+  window), «Open console» ⇄ «Close console» shows and hides it with «Clear» appearing only
+  while the log is on screen, the play arrow and the square of a stage sit in the top right
+  corner of the title line of a card, the title and the hint of a card share one line,
+  every hint is one line of text, «Check for updates» and «Help» stand on the row of the
+  settings buttons (`Help` opens `github.com/flynet/yoFunscripter/issues`), no button
+  clips its text (29 buttons measured), the order combo shows the meaning of the order
+  that is chosen, and no text of the catalogues says `sidecar`, `tick_rate`, `ffmpeg`,
+  `torch`. The console lines of all three stages are in the language of the window.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,

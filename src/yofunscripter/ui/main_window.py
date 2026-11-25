@@ -32,10 +32,15 @@ from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
 from yofunscripter.ui.theme import apply_theme
-from yofunscripter.ui.widgets import CONSOLE_MIN_HEIGHT, ConsolePanel, fmt_time, set_row_floor
+from yofunscripter.ui.widgets import ConsolePanel, fmt_time, set_row_floor
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
 from yofunscripter.workers import StageWorker
+
+
+#: the ceiling of `setMaximumHeight` in Qt: the height a widget is allowed to have
+#: when nothing limits it
+MAX_HEIGHT = 16777215
 
 
 class MainWindow(QMainWindow):
@@ -76,12 +81,13 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.progress)
 
         self.console = ConsolePanel()
-        # the log is the row that gives way: an open log takes the free space of the
-        # window, a closed log is one row of buttons and the free space stays below it,
-        # so a closed log never leaves an empty box in the window
+        # the log is the rubber of the window: an open log takes every extra pixel of
+        # the window, a closed log is one row of buttons and the empty space is the
+        # stretch item below it, which the window is not allowed to grow into
         main_layout.addWidget(self.console)
         main_layout.addStretch(1)
         self._console_index = main_layout.indexOf(self.console)
+        self._space_index = main_layout.count() - 1
         self.console.toggle.clicked.connect(self._balance_console)
         # the rows of the cards keep the height their text asks for, so a short window
         # shrinks the console, not the text of the folders: the console sets its own
@@ -123,6 +129,9 @@ class MainWindow(QMainWindow):
 
         if settings.window_geometry:
             self.restoreGeometry(QByteArray.fromHex(bytes(settings.window_geometry, "ascii")))
+        # the window is drawn in the state of the log, which is closed at start: the
+        # shape of the window and the shape of the log are one decision, not two
+        self._balance_console()
 
     def log(self, line: str) -> None:
         """One line to the console and to the status line."""
@@ -130,15 +139,21 @@ class MainWindow(QMainWindow):
         self.status.setText(line)
 
     def _balance_console(self) -> None:
-        """The free space of the window follows the log: an open log takes the stretch,
-        a closed log is one row of buttons and the space stays below it. The window
-        follows the block the way the block follows it — closing the log takes the
-        empty box away, opening it gives the log the room it asks for, so the window
-        is short exactly when there is nothing to read in it."""
-        visible = self.console.view.isVisible()
+        """The log is the rubber of the window: an open log takes every pixel the user
+        gives the window, so dragging the window taller makes the log taller and the
+        free space is the text, never an empty box. A closed log is one row of buttons:
+        the window takes exactly the height of its content and cannot be dragged
+        taller, so nothing stands empty under the row."""
+        visible = self.console.is_open
         self.main_layout.setStretch(self._console_index, 1 if visible else 0)
-        height = self.height() + (CONSOLE_MIN_HEIGHT if visible else -CONSOLE_MIN_HEIGHT)
-        self.resize(self.width(), max(height, self.minimumHeight()))
+        self.main_layout.setStretch(self._space_index, 0 if visible else 1)
+        if visible:
+            self.setMaximumHeight(MAX_HEIGHT)
+            self.resize(self.width(), max(self.height(), self.sizeHint().height()))
+        else:
+            compact = self.sizeHint().height()
+            self.setMaximumHeight(compact)
+            self.resize(self.width(), compact)
 
     # ---------------------------------------------------------------- stages
 

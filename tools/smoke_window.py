@@ -24,7 +24,7 @@ from yofunscripter.config.settings import Settings
 from yofunscripter.i18n import set_language
 from yofunscripter.locales import CATALOG
 from yofunscripter.pipeline.funscript_select import SORT_LABEL_KEYS
-from yofunscripter.ui.main_window import MainWindow
+from yofunscripter.ui.main_window import MAX_HEIGHT, MainWindow
 from yofunscripter.ui.theme import PALETTES, apply_theme
 
 fails: list[str] = []
@@ -81,13 +81,26 @@ def main() -> int:
     check(not win.console.view.isVisible(), "the console is hidden at start")
     check(not win.console.clear_button.isVisible(),
           "«Clear» is hidden while the console is closed")
+    check(win.height() == win.sizeHint().height() and
+          win.maximumHeight() == win.sizeHint().height(),
+          f"a closed log leaves no empty area ({win.height()} px of content)")
     win.console.toggle.click()
     app.processEvents()
     check(win.console.view.isVisible() and win.console.clear_button.isVisible(),
           "opening the console shows the log and «Clear»")
-    check(win.height() > closed_height, "an open log makes the window taller")
+    check(win.sizeHint().height() > closed_height,
+          f"an open log asks for a taller window ({win.sizeHint().height()} px of content)")
+    check(win.maximumHeight() == MAX_HEIGHT, "an open log lets the window grow")
     check(win.console.toggle.text() == CATALOG["en"]["console_close"],
           "the button of an open console reads «Close console»")
+    # the open log is the rubber of the window: a taller window gives all its extra
+    # height to the log, so the free space is text and not an empty box
+    win.resize(1000, 900)
+    app.processEvents()
+    check(win.main_layout.itemAt(win._space_index).geometry().height() == 0,
+          "a taller window gives its extra height to the log, not to an empty area")
+    check(win.console.view.height() > 200,
+          f"the log fills the taller window ({win.console.view.height()} px)")
     win.console.toggle.click()
     app.processEvents()
     check(not win.console.view.isVisible() and not win.console.clear_button.isVisible(),

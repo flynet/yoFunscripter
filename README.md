@@ -14,9 +14,11 @@ card is one line of text — the name of the stage and one short line of what it
 in the top right corner of that line the two buttons of the stage: the play arrow runs it,
 the square stops it, the two glyphs of any video player. The full explanation of a stage
 is in the tooltip of the card. The log is closed by default: **Open console** shows it and
-turns into **Close console**, and **Clear** appears only while the log is on screen.
-**Help** opens the issues page of this repository, and **Check for updates** stands on the
-row of the settings buttons.
+turns into **Close console**, and **Clear** appears only while the log is on screen. The
+log is the rubber of the window: an open log takes every extra pixel of a taller window,
+and a closed log is one row of buttons with the window sized to its content, so there is
+never an empty area in the window. **Help** opens the issues page of this repository, and
+**Check for updates** stands on the row of the settings buttons.
 
 ## Requirements
 
@@ -101,10 +103,11 @@ CPU torch wheels back over the cu126 ones.
 
 `smoke_window.py` renders the window offscreen and checks the defaults, the tooltips of
 every control, the minimum sizes of the rows, the stage buttons in the top right of a
-card, the console closed at start and opening with «Clear», the settings row (Revert,
-Restart, Check for updates, Help, Save), the one-line hints, that no button clips its
-text, the order combo and its per-order tooltip, and that no console text uses the words
-of the code.
+card, the console closed at start and opening with «Clear», the rubber of the log (an
+open log takes the extra height of the window, a closed window is sized to its content),
+the settings row (Revert, Restart, Check for updates, Help, Save), the one-line hints,
+that no button clips its text, the order combo and its per-order tooltip, and that no
+console text uses the words of the code.
 
 ## Release
 
