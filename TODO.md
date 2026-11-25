@@ -20,16 +20,24 @@ State of the project, in the order of what is left.
   parsing, version compare, SHA-256, resume of a partial download), the language
   catalogues (same keys, same placeholders), the progress meter, the merge selection
   (filters, five order modes, reproducible random), the packaged layout.
-- The window: title, Main/Settings tabs, three stage cards, progress panel, merge
-  options, settings sync writes `settings.json`.
+- **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
+  tabs, three stage cards with the folder rows, the progress panel with the gradient bar
+  and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,
+  the settings page. Cyrillic and Latin both render; the screenshots in `assets/screenshots`
+  are the real window (`tools/make_screenshots.py`).
+- **The packaged build**: `build.ps1` ran on this machine. PyInstaller onedir produced
+  `dist\yoFunscripter\` with `_internal` (torch, ultralytics, cv2, PySide6, scenedetect),
+  `bin\ffmpeg.exe` + `bin\ffprobe.exe` (copied from `D:\ffmpeg\bin`), `models\best.pt`,
+  `configs\`; the .exe file properties read `ProductVersion 1.0.0`, `CompanyName flynet`;
+  Inno Setup produced `dist\install\YoFunscripter-Setup-1.0.0.exe` with its `.sha256`.
 
 ## Left
 
-- **The packaged build.** `build.ps1` has not been run: PyInstaller has not packed
-  ultralytics/torch/cv2/PySide6, `bin\ffmpeg.exe` + `bin\ffprobe.exe` have not been
-  copied, the Inno Setup installer has not been produced, and the packaged app has not
-  been started. Torch is collected whole, so a missing hidden import shows as a window
-  that says "no module named ..."; the build must be run once on a real machine.
+- **The packaged app against the real work.** The packaged window has to be started and
+  one small run done inside the packaged app: the hidden imports of ultralytics/torch/cv2
+  show up only when the stage code runs inside the frozen build (the unit tests run the
+  source tree). The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has not
+  been done.
 - **The updater against the repository.** `github.com/flynet/yoFunscripter` returns 404,
   so `fetch_release`, the download and the silent install are tested only by unit tests.
   The repository must be created and `v1.0.0` released before the button does anything.
@@ -37,10 +45,11 @@ State of the project, in the order of what is left.
   same repository and have not run on GitHub.
 - **The CUDA build.** `build.ps1 -Cuda` has not been run; the device selector
   `auto`/`cuda` is untested on the machine with the GPU.
-- **Look of the window.** The three color schemes and both languages have not been
-  screenshot-checked in the running window; the icon has not been seen in the taskbar.
-  The English main window and the Russian settings page are rendered from the window code
-  into `assets/screenshots` (`tools/make_screenshots.py`), so the README shows the real UI.
+- **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
+  installer, and the window icon is set from the bundle; it has not been seen in the
+  taskbar of a running packaged app.
+- The pink scheme has not been seen in the running window (neon and cartoons are in
+  `assets/screenshots`).
 
 ## Small things to keep in mind
 
@@ -57,3 +66,6 @@ State of the project, in the order of what is left.
 - `run.bat` uses `uv` and `pythonw`; a checkout without uv prints one readable error.
 - Vendored modules keep their Russian comments; the app-facing text and the
   documentation are English.
+- The name `YoFunscripter-Setup-<version>.exe` is the contract with the updater
+  (`SETUP_PREFIX`): the Inno script writes it in that exact case, `build.ps1` checks the
+  file name and writes the `.sha256` with the leaf name.

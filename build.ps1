@@ -29,6 +29,7 @@ if ($LASTEXITCODE -eq 0 -and $tag) {
     $version = ($tag -replace "^v", "").Trim()
 }
 $ErrorActionPreference = "Stop"
+$LASTEXITCODE = 0
 Write-Host "Version: $version"
 
 $versionFile = "src\yofunscripter\_version.py"

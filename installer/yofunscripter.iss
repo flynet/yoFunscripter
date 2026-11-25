@@ -10,6 +10,10 @@
 #endif
 #define AppName "yoFunscripter"
 #define ExeName "yoFunscripter.exe"
+; The file name of the installer is the contract with the updater (SETUP_PREFIX in
+; constants.py): the release asset is matched by `YoFunscripter-Setup-`, so the name is
+; written in that exact case, not from AppName.
+#define SetupBase "YoFunscripter-Setup"
 
 [Setup]
 AppId={{8F1B2E64-3C7A-4D95-9A21-5E7C0B4D6F18}
@@ -27,7 +31,7 @@ DisableProgramGroupPage=yes
 DisableWelcomePage=no
 LicenseFile=..\NOTICE
 OutputDir=..\dist\install
-OutputBaseFilename={#AppName}-Setup-{#ProductVersion}
+OutputBaseFilename={#SetupBase}-{#ProductVersion}
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#ExeName}
 Compression=lzma2/max
