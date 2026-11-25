@@ -1,0 +1,79 @@
+# Пороги нарезки сцен. Единственный источник чисел: скрипт читает только отсюда.
+# Инструмент — PySceneDetect как python-библиотека (pip-пакет в venv/бандле сборки),
+# вызов через `scenedetect.detect` c ContentDetector: CLI-обёртка больше не нужна,
+# `scenedetect_exe` из конфига удалён. ffmpeg/ffprobe — бандль bin/ из сборки,
+# GUI подставляет абсолютные пути; в source-checkout берётся ffmpeg из PATH.
+
+ffmpeg: ffmpeg                  # D:\ffmpeg\bin в PATH; рез клипов делаем ffmpeg, не split-video
+ffprobe: ffprobe
+
+source_dir: source             # папка видео к нарезке: пользователь выбирает её в GUI
+out_dir: scenes                # нарезанные сцены; он же source_dir для funscript-merge
+scenes_dir: work/scenes        # списки сцен + graph-файлы (внутренние, не пользовательская папка)
+stats_dir: work/scenes/runs    # stats.csv + run.log
+
+pattern: "*.mp4"
+
+threshold: 27          # ContentDetector. Замер: порог 20 даёт тот же результат, что 27
+                       # (выборка 40 кликов video/), ограничитель — min_scene_len, не порог.
+                       # Детект: 172 кадров/с в одну нитку (16498 кадров за 96 с)
+min_scene_len: 60      # кадры; 2 с при 25 fps. Замер на выборке 40 кликов video/:
+                       # 60 кадров -> 2/40 кликов с 2+ сценами; 12 кадров (0.4 с) -> 11/40
+min_scenes: 2          # видео с 1 сценой не режется: 5-сек клик = один план в 95% случаев
+
+# Качество реза. Решено: массовый прогон = crf 18 (1.4x объёма, 8.7x realtime).
+# crf 0 = true lossless (x264 bit-exact, проверено MAD 0.0 на границах sexy.mp4) — режим
+# для пилотов: 19x объёма, ~300 GB на video/ при свободных 64.9 GB, whole set не влезает.
+# preset = скорость и эффективность кодирования, НЕ потеря качества: при crf 0 выход
+# lossless при любом preset.
+# Замер video_full/sexy.mp4 (11 мин 1920x1080@25, 213 MB, 20 сцен, jobs 4):
+# crf 18 -> 305.7 MB = 1.4x, рез 76 с (8.7x realtime); crf 0 -> 4104 MB = 19x, рез 124 с.
+crf: 18
+preset: veryfast
+
+# Ключевые кадры и timestamp. Клип, который открывается по .funscript, ищет кадр по
+# скрипту: при gop 250 (дефолт x264) ключевики стоят каждые 10 с при 25 fps, и плеер
+# стоит на чёрном до ближайшего ключевого кадра. gop 60 = ключевик каждые 2.4 с.
+# bframes 0: pts == dts, mp4-muxer не пишет edit list с задержкой pts-dts (замер клипа:
+# первый видео-пакет pts 0.0 / dts -0.08; у эталона, который играет, dts 0.02).
+# timescale 30000 = time_base, которое делится на 24/25/30 fps (у клипа был 1/12800).
+# faststart = moov в начало файла (без него индекс в конце файла, за 37 MB).
+# Все четыре флага совпадают с энкодом сегментов склейки (funscript_concat.py), файл
+# которого ScriptPlayer играет.
+gop: 60
+bframes: 0
+timescale: 30000
+faststart: true
+profile: high
+
+# Аудио в клипах режется фильтром atrim по секундам (границы = кадры / fps). Параметры
+# взяты у энкода сегментов склейки: AAC 192k, 48000 Гц, stereo. ALAC 44100 lossless
+# играет в VLC, а ScriptPlayer звук потерял. Копировать аудио нельзя: -c:a copy при -ss
+# берёт звук от точки реза до конца ФАЙЛА, контейнер выходит длиннее видео (замер:
+# 5.2 с видео -> 24.9 с контейнера), и плеер «висит» на последнем кадре до конца звука.
+# audio: false даёт -an (клип без звука, длительность = видео).
+audio: true
+audio_codec: aac
+audio_bitrate: 192k
+audio_rate: 48000
+audio_channels: 2
+
+jobs: 1                # параллельных процессов ffmpeg. 4 процесса x split=N (N сцен) x N
+                       # энкодеров libx264 = гигабайты: 57 сцен x ~100 MB x 4 = ~23 GB RAM на
+                       # 31.7 GB машине, и файл подкачка тоже на D. Один процесс x -threads 1.
+
+# Список сцен CSV (docs): Length (frames) = End Frame - Start Frame + 1, значит
+# Start Frame и End Frame = ПЕРВЫЙ И ПОСЛЕДНИЙ кадр сцены (1-базные, inclusive),
+# следующая сцена начинается с End Frame + 1. Клип = кадры [Start Frame - 1, End Frame - 1]
+# в 0-базном индексе ffmpeg, то есть trim=start_frame=Start-1:end_frame=End. Это ровно
+# Length кадров и ровно Duration (Start Time .. End Time), без чужих кадров.
+# Trim по номерам кадров точный: проверено на 12 границах sexy.mp4.
+head_frames: 0    # кадр прошлой сцены в начале клипа не берём
+tail_frames: 0    # кадры следующей сцены в конце клипа не берём: рез ровно по границе
+
+# Шаблоны имён CLI. Макрос $VIDEO_NAME поглощает словесные символы, поэтому после него
+# нужен не-словесный разделитель: `-f '$VIDEO_NAME__s$SCENE_NUMBER'` даёт литерал
+# $VIDEO_NAME__s001.mp4 (макрос не распознан). split-video дополняет $SCENE_NUMBER
+# до 3 цифр.
+name_template: '$VIDEO_NAME-s$SCENE_NUMBER'   # sexy.mp4 -> sexy-s001.mp4
+list_template: '$VIDEO_NAME-scene-list.csv'    # sexy.mp4 -> sexy-scene-list.csv

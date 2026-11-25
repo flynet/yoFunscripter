@@ -1,0 +1,15 @@
+# Шаблон классов. Скопируйте этот файл в configs/classes.yaml и заполните names;
+# classes.yaml локальный (не в git): имена классов не коммитятся.
+# Порядок = индекс класса в YOLO txt. Изменение списка = переэкспорт и пересплит
+# всего датасета. Фиксируется до первой разметки.
+#
+# Индексы, а не имена, используются в:
+#   configs/funscript*.yaml  priority: [3, 4, 2, 1, 0] (разрешается из classes.yaml)
+#   scripts/funscript_view.py, scripts/test_ui.py, scripts/test_video_ui.py — цвета по индексу
+nc: 5
+names:
+  - cls0
+  - cls1
+  - cls2
+  - cls3
+  - cls4

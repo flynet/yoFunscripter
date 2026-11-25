@@ -1,0 +1,54 @@
+name: Release build
+
+# The installer is built on the Windows runner and attached to the release: the updater
+# of the app reads `releases/latest` and looks for `YoFunscripter-Setup-<version>.exe`,
+# so the file name of the build is the contract (SETUP_PREFIX in constants.py).
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # build.ps1 takes the version from `git describe --tags`, so the tags must be
+          # in the checkout, not only the tip of the default branch
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install the dependencies (CPU torch wheels)
+        run: uv sync
+
+      - name: Build the program and the installer
+        shell: pwsh
+        # Inno Setup 6 is installed on the Windows runner, and FFmpeg is downloaded by
+        # tools\fetch_ffmpeg.ps1 (the build ships bin\ffmpeg.exe and bin\ffprobe.exe)
+        run: powershell -ExecutionPolicy Bypass -File build.ps1
+
+      - name: Check the file name against the release
+        shell: pwsh
+        run: |
+          $version = (git describe --tags --abbrev=0) -replace '^v', ''
+          $setup = "dist/install/YoFunscripter-Setup-$version.exe"
+          if (-not (Test-Path $setup)) {
+            throw "the installer is not at $setup (the updater finds only this name)"
+          }
+          Write-Host "installer: $setup"
+
+      - name: Publish the installer and its SHA-256
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/install/YoFunscripter-Setup-*.exe
+            dist/install/YoFunscripter-Setup-*.exe.sha256
