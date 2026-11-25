@@ -81,6 +81,17 @@ if ($Cuda) {
 # uv and PyInstaller write progress on stderr: NativeCommandError must not stop the
 # script, the exit code is the real check. `--no-sync` keeps the venv as it is: a plain
 # `uv run` syncs the project and puts the CPU torch wheels back over the cu126 ones.
+#
+# PATH is filtered to the directories that exist. PyInstaller resolves the DLL
+# dependencies of every binary through PATH, and a dead entry makes it stop with
+# `FileNotFoundError` on a file of that directory. The machine has `C:\Users\Home\miniconda3`
+# in PATH with no folder behind it, and `libcrypto-3-x64.dll` is a dependency of `_ssl.pyd`,
+# so the CUDA build died on `miniconda3\Library\bin\libcrypto-3-x64.dll`. The real file is
+# in the uv python install, which stays in PATH and is found after the filter.
+$before = ($env:PATH -split ";") | Where-Object { $_ }
+$alive = $before | Where-Object { Test-Path $_ }
+$env:PATH = ($alive -join ";")
+Write-Host "PATH: $($alive.Count) entries kept, $($before.Count - $alive.Count) dead entries dropped"
 if (Test-Path "dist") { Remove-Item -Recurse -Force "dist" }
 $ErrorActionPreference = "Continue"
 uv run --no-sync pyinstaller --clean --noconfirm yofunscripter.spec
