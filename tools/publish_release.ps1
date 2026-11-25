@@ -2,11 +2,11 @@
 #
 #   powershell -ExecutionPolicy Bypass -File tools\publish_release.ps1
 #
-The release is the source of the updater (`releases/latest`), so the tag must be pushed
-before the release is created (`git tag v1.0.4; git push origin v1.0.4`). The token is
-taken from the git credential manager, the same one `git push` uses. The release id is
-written to `build\release_id.txt` for `tools\publish_upload.ps1`. The CI workflow
-(`.github/workflows/release.yml`) starts on this event and builds the CPU installer.
+# The release is the source of the updater (`releases/latest`), so the tag must be pushed
+# before the release is created (`git tag v1.0.5; git push origin v1.0.5`). The token is
+# taken from the git credential manager, the same one `git push` uses. The release id is
+# written to `build\release_id.txt` for `tools\publish_upload.ps1`. The CI workflow
+# (`.github/workflows/release.yml`) starts on this event and builds the CPU installer.
 
 param(
     [string]$Tag
