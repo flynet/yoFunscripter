@@ -115,7 +115,7 @@ order combo and its per-order tooltip, and that no console text uses the words o
 ## Release
 
 ```powershell
-git tag v1.0.4; git push origin v1.0.4
+git tag v1.0.5; git push origin v1.0.5
 powershell -ExecutionPolicy Bypass -File tools\publish_release.ps1   # the release on GitHub
 powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda            # the CUDA installer
 powershell -ExecutionPolicy Bypass -File tools\publish_upload.ps1    # attach it to the release
