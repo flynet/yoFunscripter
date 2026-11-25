@@ -96,6 +96,21 @@ CPU torch wheels back over the cu126 ones.
 every control, the minimum sizes of the rows, the order combo and its per-order
 tooltip, and that no console text uses the words of the code.
 
+## Release
+
+```powershell
+git tag v1.0.4; git push origin v1.0.4
+powershell -ExecutionPolicy Bypass -File tools\publish_release.ps1   # the release on GitHub
+powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda            # the CUDA installer
+powershell -ExecutionPolicy Bypass -File tools\publish_upload.ps1    # attach it to the release
+```
+
+`publish_release.ps1` creates the release from `build\release-notes-<version>.md` and
+writes the release id to `build\release_id.txt`; the CI workflow builds the CPU installer.
+`publish_upload.ps1` attaches the installer of the local CUDA build and removes the CPU
+asset of the CI, so the release keeps one setup file. Both read the token from the git
+credential manager.
+
 ## Tests
 
 ```powershell
