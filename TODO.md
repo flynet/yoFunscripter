@@ -43,10 +43,16 @@ State of the project, in the order of what is left.
   properties read `ProductVersion 1.0.0`, `CompanyName flynet`; Inno Setup produced
   `dist\install\YoFunscripter-Setup-1.0.0.exe` (228 MB) with its `.sha256`, in the exact
   case of the updater contract.
-- The packaged window starts: `dist\yoFunscripter\yoFunscripter.exe` runs 40 s in the
-  offscreen platform, 92 MB of memory, `settings.json` is written to
-  `%APPDATA%\YoFunscripter` — Qt, cv2, scenedetect and the settings path load in the
-  frozen build.
+- The packaged window starts and shows the settings row: `dist\yoFunscripter\yoFunscripter.exe`
+  runs 40 s in the offscreen platform, 92 MB of memory, `settings.json` is written to
+  `%APPDATA%\YoFunscripter`; on the real (windows) platform the window opens and the Settings
+  tab shows the row «Сбросить / Перезапустить / Сохранить» (the captured window is
+  `C:\Users\Home\AppData\Local\Temp\opencode\packaged-settings.png`), with the model
+  placeholder pointing at `_internal\models\best.pt` of the bundle. The compiled modules of
+  the PYZ inside the `.exe` contain `settings_save`, `settings_revert`,
+  `settings_restart`, `save_requested`, `restart_requested`, `_apply_settings`,
+  `_restart_app`, `restart_command`, `startDetached`, `Сохранить`, `Сбросить`,
+  `Перезапустить`, so the frozen build is the code of the source tree.
 
 - **The imports of the frozen build.** `tools/selftest.py` + `tools/selftest.spec` build
   the same packages as `yofunscripter.spec` without Qt and run in the frozen build:
@@ -58,17 +64,24 @@ State of the project, in the order of what is left.
 ## Left
 
 - **One run inside the packaged app.** `dist\` and `dist\install\YoFunscripter-Setup-1.0.0.exe`
-  were built before the «Save» row of the settings, so they must be rebuilt by `build.ps1`
-  before the packaged checks. The stage code inside the frozen build has not
-  been driven: the selftest proves the imports and the model, the ffmpeg calls and the
-  worker threads are the same code the source runs, and the source is measured
-  end to end. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has not
-  been done.
-- **The updater against the repository.** `github.com/flynet/yoFunscripter` returns 404,
-  so `fetch_release`, the download and the silent install are tested only by unit tests.
-  The repository must be created and `v1.0.0` released before the button does anything.
-  The CI workflows (`.github/workflows/ci.yml`, `release.yml`) are written against the
-  same repository and have not run on GitHub.
+  are rebuilt after the «Save» row (228.4 MB, SHA-256
+  `7cc86494389a1f21e8ba3e08a0f1c2a1d6af3da03991f06964516813858d733c`). The stage code inside
+  the frozen build has not been driven: the selftest proves the imports and the model, the
+  ffmpeg calls and the worker threads are the same code the source runs, and the source is
+  measured end to end. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has
+  not been done.
+- **The updater against the repository.** The release `v1.0.0` exists
+  (`https://github.com/flynet/yoFunscripter/releases/tag/v1.0.0`) with the two assets
+  `YoFunscripter-Setup-1.0.0.exe` (228.4 MB) and
+  `YoFunscripter-Setup-1.0.0.exe.sha256` (96 bytes), and GitHub's own digest of the asset is
+  `sha256:7cc86494389a1f21e8ba3e08a0f1c2a1d6af3da03991f06964516813858d733c` — the same value
+  `build.ps1` wrote into the `.sha256` file, so `verify()` has the right expectation. The
+  repository is **private**: the unauthenticated `releases/latest` answers 404 (measured),
+  while the same call with the token answers 200, so `fetch_release` of the installed program
+  finds nothing. The repository has to be public for the «Check for updates» button to work
+  for anyone, and then `fetch_release`, the download and the silent install must be measured
+  against the real release. The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
+  not run on GitHub.
 - **The CUDA build.** `build.ps1 -Cuda` has not been run; the device selector
   `auto`/`cuda` is untested on the machine with the GPU.
 - **The icon in the running program.** `assets/icon.ico` is built into the .exe and the
