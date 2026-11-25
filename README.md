@@ -13,12 +13,14 @@ Every setting of the window has a tooltip that says what it does in plain words.
 card is one line of text — the name of the stage and one short line of what it does — and
 in the top right corner of that line the two buttons of the stage: the play arrow runs it,
 the square stops it, the two glyphs of any video player. The full explanation of a stage
-is in the tooltip of the card. The window opens on the full screen with the log open, and
-the log is the rubber of the window: it takes every extra pixel of a taller window.
-**Close console** hides the log and shrinks the window to its content, so there is never
-an empty area in the window; the button turns into **Open console**, and **Clear** is on
-the row only while the log is on screen. **Help** opens the issues page of this repository,
-and **Check for updates** stands on the row of the settings buttons.
+is in the tooltip of the card. The window opens on the full screen with the log closed, and
+the window is rubber in height: the room the user gives it becomes the space between the
+cards, and an open log takes a bigger part of that room than a gap. Closing the log gives
+the room back to the gaps, so the size of the window never jumps and the text of a row is
+never squeezed under the height it needs. **Open console** ⇄ **Close console** is one
+button of the row, **Clear** is on the row only while the log is on screen, and the row
+carries no word **Console**. **Help** opens the issues page of this repository, and
+**Check for updates** stands on the row of the settings buttons.
 
 ## Requirements
 
@@ -103,12 +105,12 @@ CPU torch wheels back over the cu126 ones.
 
 `smoke_window.py` renders the window offscreen and checks the defaults, the tooltips of
 every control, the minimum sizes of the rows, the stage buttons in the top right of a
-card, the log open at start (no word «Console» on its row) and closing to the height of
-the content with «Clear» hidden, the rubber of the log (an open log takes the extra
-height of the window), the startup that shows the window maximized, the settings row
-(Revert, Restart, Check for updates, Help, Save), the one-line hints, that no button
-clips its text, the order combo and its per-order tooltip, and that no console text uses
-the words of the code.
+card, the log closed at start (no word «Console» on its row), the rubber of the window (a
+screen-sized window spreads the space between the cards, an open log takes more of it than
+a gap, closing the log keeps the size of the window, the cards keep the height of their
+text), the startup that shows the window maximized, the settings row (Revert, Restart,
+Check for updates, Help, Save), the one-line hints, that no button clips its text, the
+order combo and its per-order tooltip, and that no console text uses the words of the code.
 
 ## Release
 

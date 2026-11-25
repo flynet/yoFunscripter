@@ -32,7 +32,7 @@ from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
 from yofunscripter.ui.theme import apply_theme
-from yofunscripter.ui.widgets import ConsolePanel, MAX_HEIGHT, fmt_time, set_row_floor
+from yofunscripter.ui.widgets import ConsolePanel, fmt_time, set_row_floor
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
 from yofunscripter.workers import StageWorker
@@ -68,25 +68,33 @@ class MainWindow(QMainWindow):
                                          settings)
         self.merge_card = merge_card((self.layout.scenes_dir, self.layout.scripts_dir,
                                       self.layout.result_dir), settings)
+        # the window is rubber in height: every gap between the cards takes an equal part
+        # of the room the user gives the window, so a full-screen window shows the cards
+        # spread over the whole screen and a small window shows them tight. The floor of
+        # a row is its own text, so the spreading never takes the height of a letter
         main_layout.addWidget(self.scenes_card)
+        main_layout.addStretch(1)
         main_layout.addWidget(self.scripts_card)
+        main_layout.addStretch(1)
         main_layout.addWidget(self.merge_card)
+        main_layout.addStretch(1)
 
         self.progress = ProgressPanel()
         main_layout.addWidget(self.progress)
+        main_layout.addStretch(1)
 
         self.console = ConsolePanel()
-        # the log is the rubber of the window: an open log takes every extra pixel of
-        # the window, a closed log is one row of buttons and the empty space is the
-        # stretch item below it, which the window is not allowed to grow into
+        # the log grows out of the room of the window: an open log takes a bigger part of
+        # it than the gaps, a closed log is one row of buttons and the gaps spread
         main_layout.addWidget(self.console)
         main_layout.addStretch(1)
         self._console_index = main_layout.indexOf(self.console)
-        self._space_index = main_layout.count() - 1
+        self._gap_indices = [i for i in range(main_layout.count())
+                             if main_layout.itemAt(i).spacerItem() is not None]
         self.console.toggle.clicked.connect(self._balance_console)
         # the rows of the cards keep the height their text asks for, so a short window
-        # shrinks the console, not the text of the folders: the console sets its own
-        # floor (one row when closed, the readable minimum of the log when open)
+        # shrinks the console and the gaps, not the text of the folders: the console sets
+        # its own floor (one row when closed, the readable minimum of the log when open)
         set_row_floor(main_layout)
         self.tabs.addTab(self.main_tab, tr("tab_main"))
 
@@ -122,24 +130,12 @@ class MainWindow(QMainWindow):
         self.merge_card.extra.sort.currentIndexChanged.connect(self._sync_merge)
         self.merge_card.extra.name.textChanged.connect(self._sync_merge)
 
-        # the compact height of the window: the parts of it when the log is closed.
-        # The layout of a `QMainWindow` caches its size hint, so the height of the
-        # content cannot be read back after the log has been opened, and the number is
-        # added from the tab page, the tab bar, the frame and the status line
-        self.console.show_console(False)
-        margins = self.centralWidget().layout().getContentsMargins()
-        self._compact_height = (self.tabs.sizeHint().height()
-                                + self.statusBar().sizeHint().height()
-                                + margins[1] + margins[3])
-        self.console.show_console(True)
-        self.console.clear_button.setVisible(True)
-        # the folders, the bar and the buttons of the log are the content the window
-        # shows in every state: the log shrinks to its readable minimum, the text never
-        self.setMinimumHeight(self._compact_height)
+        # the log starts closed and the window opens on the full screen, so the shape of
+        # the window is decided once: the gaps take the room of the screen, the rows keep
+        # the height of their text
+        self.console.clear_button.setVisible(False)
         if settings.window_geometry:
             self.restoreGeometry(QByteArray.fromHex(bytes(settings.window_geometry, "ascii")))
-        # the window is drawn in the state of the log, which is open at start: the shape
-        # of the window and the shape of the log are one decision, not two
         self._balance_console()
 
     def log(self, line: str) -> None:
@@ -148,27 +144,19 @@ class MainWindow(QMainWindow):
         self.status.setText(line)
 
     def _balance_console(self) -> None:
-        """The log is the rubber of the window: an open log takes every pixel the user
-        gives the window, so dragging the window taller makes the log taller and the
-        free space is the text, never an empty box. A closed log is one row of buttons:
-        the window takes exactly the height of its content and cannot be dragged
-        taller, so nothing stands empty under the row. A window that is on the full
-        screen leaves the full screen when its log is closed, for the same reason."""
+        """The window is rubber in height: the room the user gives the window is shared
+        between the gaps around the cards, and an open log takes a bigger share than a
+        gap, so the window fills the screen in both states and every row keeps the
+        height its text asks for. Opening the log in a small window asks for a taller
+        window; closing it leaves the window the size it is, so the window never jumps
+        and never gets clamped to half the screen."""
         visible = self.console.is_open
-        self.main_layout.setStretch(self._console_index, 1 if visible else 0)
-        self.main_layout.setStretch(self._space_index, 0 if visible else 1)
-        if visible:
-            self.setMinimumHeight(self.sizeHint().height())
-            self.setMaximumHeight(MAX_HEIGHT)
-            self.resize(self.width(), max(self.height(), self.sizeHint().height()))
-        else:
-            if self.isMaximized():
-                # the height of the screen is more than the closed log can fill, and a
-                # maximized window ignores the height it is given
-                self.showNormal()
-            self.setMinimumHeight(self._compact_height)
-            self.setMaximumHeight(self._compact_height)
-            self.resize(self.width(), self._compact_height)
+        self.main_layout.setStretch(self._console_index, 5 if visible else 0)
+        # the window is resized only when it is too small for the open log: resizing a
+        # window that is on the full screen takes it off the full screen, and a window
+        # that is big enough needs nothing
+        if visible and self.height() < self.sizeHint().height():
+            self.resize(self.width(), self.sizeHint().height())
 
     # ---------------------------------------------------------------- stages
 

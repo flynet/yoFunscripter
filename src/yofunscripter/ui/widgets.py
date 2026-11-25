@@ -75,11 +75,12 @@ def media_button(pixmap: QStyle.StandardPixmap, tip: str, name: str,
 class ConsolePanel(QWidget):
     """The log of the window: one `append` per console line, the last lines stay visible.
 
-    The log is the rubber of the window: it opens with the window and takes every extra
-    pixel of a taller window, so a big window is a big log and never an empty box.
-    «Close console» hides the block and the window shrinks to its folders; «Clear» is on
-    the row only while the log is on screen. The row carries no word «Console»: the button
-    of the block says what it does in its own state, and the tooltip of the button is the
+    The log starts closed: the window shows the folders, the progress bar and the one row
+    of buttons. An open log is the rubber of the window: it takes every extra pixel of a
+    taller window, so a big window is a big log. Closing the log never changes the size of
+    the window, so the window does not jump when a person hides the text. «Clear» is on the
+    row only while the log is on screen. The row carries no word «Console»: the button of
+    the block says what it does in its own state, and the tooltip of the button is the
     whole explanation of the block.
     """
 
@@ -90,9 +91,9 @@ class ConsolePanel(QWidget):
         layout.setSpacing(3)
         row = QHBoxLayout()
         row.addStretch(1)
-        self.toggle = QPushButton(tr("console_close"))
+        self.toggle = QPushButton(tr("console_open"))
         self.toggle.setObjectName("browse")
-        self.toggle.setToolTip(tr("console_close_tip"))
+        self.toggle.setToolTip(tr("console_open_tip"))
         row.addWidget(self.toggle)
         self.clear_button = QPushButton(tr("clear"))
         self.clear_button.setObjectName("browse")
@@ -111,7 +112,7 @@ class ConsolePanel(QWidget):
         #: the state of the block, kept as a flag: `isVisible()` of a widget in a window
         #: that is not shown yet is `False`, so the state of the log cannot be read from
         #: the widget before the window is on screen
-        self.is_open = True
+        self.is_open = False
         set_row_floor(layout)
         # the log is the part of the window that gives way: its floor is the readable
         # minimum, not the size hint, so an open log can shrink to 60 px and never
@@ -119,7 +120,7 @@ class ConsolePanel(QWidget):
         self.view.setMinimumHeight(CONSOLE_MIN_HEIGHT)
         #: the row of the buttons: the whole block when the log is closed
         self.header_height = row.sizeHint().height()
-        self._apply_floor(True)
+        self.show_console(False)
 
     def _apply_floor(self, visible: bool) -> None:
         """The size the block is allowed to take: the row of its buttons when the log is

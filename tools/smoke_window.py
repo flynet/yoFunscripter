@@ -82,42 +82,67 @@ def main() -> int:
     check("window.showMaximized()" in startup,
           "the window opens on the full screen")
 
-    # the log opens with the window: the window fills the screen and the log takes its
-    # room, so the free space is text; the button says what the block does in its own
-    # state, and «Clear» is on the row only while the log is on screen
-    check(win.console.is_open and win.console.view.isVisible(), "the log is open at start")
-    check(win.console.clear_button.isVisible(), "«Clear» is there while the log is open")
-    check(win.console.toggle.text() == CATALOG["en"]["console_close"],
-          "the button of an open console reads «Close console»")
+    # the log starts closed: the window shows the folders, the bar and the one row of
+    # buttons, and the button says what the block does in its own state
+    check(not win.console.is_open and not win.console.view.isVisible(),
+          "the log is closed at start")
+    check(not win.console.clear_button.isVisible(),
+          "«Clear» is hidden while the console is closed")
+    check(win.console.toggle.text() == CATALOG["en"]["console_open"],
+          "the button of a closed console reads «Open console»")
     check(win.maximumHeight() == MAX_HEIGHT,
-          "an open log lets the window fill the screen")
+          "the window is not clamped: it can fill the screen in both states")
     check(not any(w.objectName() == "console_title" for w in widgets)
           and all("Console" not in w.text() for w in widgets if isinstance(w, QLabel)),
           "the row of the log carries no word «Console»")
-    # closing the log brings the window to the size of its content, with no empty area
+
+    def gaps() -> list[int]:
+        """The height of every stretch between the cards of the window."""
+        return [win.main_layout.itemAt(i).geometry().height() for i in win._gap_indices]
+
+    # a window the size of the screen spreads the cards over the screen, and every card
+    # keeps the height its own text asks for: the room is space, never squeezed letters
+    win.resize(1280, 1000)
+    app.processEvents()
+    spread = sum(gaps())
+    check(spread > 200, f"a screen window stretches the space between the cards ({spread} px)")
+    check(all(card.height() == card.sizeHint().height() for card in
+              (win.scenes_card, win.scripts_card, win.merge_card, win.progress)),
+          "the cards keep the height of their text in a stretched window")
+
+    # opening the log: the log takes a bigger part of the room than a gap, «Clear»
+    # appears with it, and the size of the window does not move
     win.console.toggle.click()
     app.processEvents()
-    closed_height = win.height()
+    check(win.console.view.isVisible() and win.console.clear_button.isVisible(),
+          "opening the console shows the log and «Clear»")
+    check(win.console.toggle.text() == CATALOG["en"]["console_close"],
+          "the button of an open console reads «Close console»")
+    check(win.console.view.height() > max(gaps()),
+          f"the open log takes more room than a gap ({win.console.view.height()} px "
+          f"of log, {max(gaps())} px of gap)")
+    check(win.height() == 1000, "opening the log keeps the size of the window")
+
+    # closing the log gives the room back to the gaps: the window stays the size it is,
+    # so the window never jumps to half the screen
+    win.console.toggle.click()
+    app.processEvents()
     check(not win.console.view.isVisible() and not win.console.clear_button.isVisible(),
           "closing the console hides the log and «Clear»")
-    check(win.height() == win._compact_height and
-          win.maximumHeight() == win._compact_height and
-          win.minimumHeight() == win._compact_height,
-          f"a closed log leaves no empty area ({win.height()} px of content)")
-    check(win.console.toggle.text() == CATALOG["en"]["console_open"],
-          "the button of a closed console reads «Open console»")
-    # the open log is the rubber of the window: a taller window gives all its extra
-    # height to the log, and an open log asks for the height of a taller content
+    check(win.height() == 1000, "closing the log does not shrink the window")
+    check(sum(gaps()) > 200, f"the gaps spread the closed log ({sum(gaps())} px)")
+
+    # a small window with the log open asks for the height of its content, and the floor
+    # of the log keeps the text readable
+    win.resize(900, 600)
+    app.processEvents()
     win.console.toggle.click()
     app.processEvents()
-    check(win.sizeHint().height() > closed_height,
-          f"an open log asks for a taller window ({win.sizeHint().height()} px of content)")
-    win.resize(1000, 900)
+    check(win.height() >= win.sizeHint().height(),
+          f"an open log in a small window asks for a taller window ({win.height()} px)")
+    check(win.console.view.height() >= 60, "an open log keeps its readable minimum")
+    win.console.toggle.click()
     app.processEvents()
-    check(win.main_layout.itemAt(win._space_index).geometry().height() == 0,
-          "a taller window gives its extra height to the log, not to an empty area")
-    check(win.console.view.height() > 200,
-          f"the log fills the taller window ({win.console.view.height()} px)")
 
     # the commands of the settings page: Check for updates and Help stand on the row of
     # the buttons of the page, not in the status line (the tab is hidden, so the row is

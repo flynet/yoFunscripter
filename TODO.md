@@ -46,20 +46,23 @@ State of the project, in the order of what is left.
 - **The window, checked offscreen** (`tools/smoke_window.py`): the default theme is neon
   (window palette read `#0e0e1a`), the default language is English, every control has a
   tooltip (67 in the window), the folder fields keep `minWidth 220` and the labels the
-  floor of their text, the app opens the window maximized (the startup calls
-  `showMaximized`), the log is open at start and is the rubber of the window: it asks for
-  743 px and takes every extra pixel of a taller window (the log read 351 px in a 900 px
-  window), closing it hides the log and «Clear», shrinks the window to its content
-  (`875x548`, `minimumHeight` = `maximumHeight` = 548, so it cannot be dragged into empty
-  space), and the window leaves the full screen when its log is closed; «Open console» ⇄
-  «Close console» is one button of the row, the row carries no word «Console», «Clear» is
-  on the row only while the log is on screen, the play arrow and the square of a stage sit
-  in the top right corner of the title line of a card, the title and the hint of a card
-  share one line, every hint is one line of text, «Check for updates» and «Help» stand on
-  the row of the settings buttons (`Help` opens `github.com/flynet/yoFunscripter/issues`),
-  no button clips its text (29 buttons measured), the order combo shows the meaning of the
-  order that is chosen, and no text of the catalogues says `sidecar`, `tick_rate`, `ffmpeg`,
-  `torch`. The console lines of all three stages are in the language of the window.
+  floor of their text, the minimum window is `875x548`, the app opens the window maximized
+  (the startup calls `showMaximized`) and the window is never clamped (`maximumHeight` is
+  the Qt ceiling in both states), the log is closed at start, and the window is rubber in
+  height: in a `1280x1000` window the gaps between the cards read 454 px while every card
+  keeps its `sizeHint` height, opening the log takes more of the room than a gap (213 px
+  of log against 48 px of gap) and keeps the size of the window, closing it gives the room
+  back to the gaps and does not shrink the window, and a small window with the log open
+  asks for the height of its content (`548` px), the log never under its readable 60 px;
+  «Open console» ⇄ «Close console» is one button of the row, the row carries no word
+  «Console», «Clear» is on the row only while the log is on screen, the play arrow and the
+  square of a stage sit in the top right corner of the title line of a card, the title and
+  the hint of a card share one line, every hint is one line of text, «Check for updates»
+  and «Help» stand on the row of the settings buttons
+  (`Help` opens `github.com/flynet/yoFunscripter/issues`), no button clips its text (29
+  buttons measured), the order combo shows the meaning of the order that is chosen, and no
+  text of the catalogues says `sidecar`, `tick_rate`, `ffmpeg`, `torch`. The console lines
+  of all three stages are in the language of the window.
 - **The window** in the real (windows) platform: title `yoFunscripter 1.0.0`, Main/Settings
   tabs, three stage cards with the folder rows, the progress panel with the gradient bar
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,
@@ -224,9 +227,10 @@ State of the project, in the order of what is left.
   taskbar of a running packaged app.
 - The pink scheme has not been seen in the running window (neon and cartoons are in
   `assets/screenshots`).
-- **The window on the full screen.** The app opens maximized, and closing the log of a
-  maximized window calls `showNormal()` and shrinks the window to its content — both are
-  measured offscreen only, not in a real window on a real screen.
+- **The window on the full screen.** The app opens maximized with the log closed, and the
+  spread of the gaps is measured offscreen only, not in a real window on a real screen.
+  `resize()` of a maximized window takes it off the full screen, so `_balance_console()`
+  resizes the window only when it is too small for the open log.
 
 ## Small things to keep in mind
 
