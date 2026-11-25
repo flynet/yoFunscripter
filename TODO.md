@@ -101,6 +101,21 @@ State of the project, in the order of what is left.
     Install button is never pressed: the fixture file is not an installer.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
+- **The CUDA build and release 1.0.2.** `https://github.com/flynet/yoFunscripter/releases/tag/v1.0.2`
+  (release id `457813468`) carries `YoFunscripter-Setup-1.0.2.exe` (asset id `790659388`,
+  1793830265 bytes, SHA-256
+  `72b2209121a35d5e689981f0830c20a5e587d36ecd5ffc6949c5876abf5d650b`) and its `.sha256`
+  (asset id `790669130`, 96 bytes); the tag is moved to the commit the build was made from
+  (`886e162`). The published chain without a token is measured: `api_url` →
+  `releases/latest` of the repository, the release reads `1.0.2`, `is_setup` True, the
+  download URL is `browser_download_url`, `is_newer("1.0.1", "1.0.2")` True and
+  `is_newer("1.0.2", "1.0.2")` False, the SHA-256 of the release asset equals the digest of
+  the file in `dist\install` and `verify()` is True, the sizes are equal byte for byte, the
+  chunked reader is exercised on the 96-byte asset, the command is
+  `setup.exe /SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART` with `creationflags`
+  `0x8` = `DETACHED_PROCESS`, and `Popen` is stubbed so the installer is never launched. The
+  installer 1.0.2 has not been installed and run on a machine (the install and the device
+  `cuda` in the settings are for the user).
 - **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv pip
   install` without `--reinstall` printed `Audited 2 packages` and changed nothing (the CPU
   wheels already satisfy the requirement), and `uv run pyinstaller` syncs the project, so it
