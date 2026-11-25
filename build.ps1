@@ -61,6 +61,8 @@ $filled = $template.Replace("VERSION_TUPLE", $tuple).Replace("VERSION_STRING", $
 # --- 3. the torch wheels of the venv -----------------------------------------
 # The default venv has the CPU wheels (torchcpu index of pyproject.toml). A CUDA box
 # needs the cu126 wheels: they are taken from the PyTorch index, not from PyPI.
+# `uv pip install` without `--reinstall` prints "Audited 2 packages" and installs
+# nothing, because the CPU wheels already satisfy the requirement.
 if ($Cuda) {
     Write-Host "CUDA build: installing the cu126 wheels of torch and torchvision"
     $ErrorActionPreference = "Continue"
