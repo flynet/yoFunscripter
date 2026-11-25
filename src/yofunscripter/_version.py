@@ -4,4 +4,4 @@
 it stays ``1.0.0``. The updater compares this value with the latest release.
 """
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"

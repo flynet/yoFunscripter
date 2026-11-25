@@ -3,125 +3,75 @@
 Windows desktop app for three jobs on a folder of videos:
 
 1. **Cut scenes** — split videos into scene clips with PySceneDetect + FFmpeg.
-2. **Generate funscripts** — run the YOLO tracking pipeline on the clips and write a
-   `.funscript` sidecar for every clip.
-3. **Merge** — pick the clips by wave count, encode them to one format, concatenate
-   them into one video and merge their funscripts into one script.
-
-The scene detector and the funscript pipeline are the same algorithms and thresholds as
-the reference YOLO project; the app only adds the window, folder selection, real
-progress (percent, ETA, elapsed) and the log.
-
-The settings page (Russian, the «Cartoons» scheme): language, color scheme, threads of
-each stage, device for YOLO, the model file, and the two run options. «Сохранить» / «Save»
-writes the settings at once, «Сбросить» / «Revert» returns the form to the saved values,
-«Перезапустить» / «Restart» starts the program again so the new language is applied
-(the colour scheme is applied without a restart).
+2. **Generate funscripts** — YOLO tracking on the clips, one `.funscript` sidecar per clip.
+3. **Merge** — pick clips by wave count, encode them to one format, concatenate into one
+   video and one funscript.
 
 ## Requirements
 
-- Windows 10/11 x64. FFmpeg and FFprobe are bundled, nothing has to be installed.
-- A YOLO model `best.pt` is bundled; the settings can point to another model and reset
-  to the default.
+- Windows 10/11 x64. FFmpeg and FFprobe are bundled.
+- A YOLO model `best.pt` is bundled; another model can be picked in the settings.
 
 ## Install
 
 Download `YoFunscripter-Setup-<version>.exe` from
-[Releases](https://github.com/flynet/yoFunscripter/releases) and run it. The app lives in
-its own folder; the defaults of every stage are subfolders of that folder:
+[Releases](https://github.com/flynet/yoFunscripter/releases) and run it. The defaults of
+every stage are subfolders of the install folder:
 
 ```
-scenes\   cut clips of stage 1 (input of stages 2 and 3)
-scripts\  .funscript sidecars of stage 2 (input of stage 3)
+scenes\   cut clips of stage 1
+scripts\  .funscript sidecars of stage 2
 result\   merged video + merged funscript
-work\     intermediates (scene lists, segment cache, reports); safe to delete
+work\     intermediates; safe to delete
 ```
 
-The **Check for updates** button reads the latest GitHub release and downloads and runs
-its installer. The read is unauthenticated, so it works when the release is public; for a
-private repository GitHub answers 404 and the app says there is no release, and the installer
-has to be taken from the release page by hand.
+**Check for updates** reads the latest GitHub release, downloads its installer, checks
+SHA-256 and runs it silently.
 
 ## Use
 
-**Settings** — language (English/Russian), colour scheme, threads, device
-(`auto` / `cpu` / `cuda`), model file; the row of buttons Save / Revert / Restart. The form is
-written to `%APPDATA%\YoFunscripter\settings.json` when «Save» is pressed (and on close), so
-a run that is going keeps the values it started with.
+**Settings** — language (EN/RU), colour scheme, threads, device (`auto` / `cpu` / `cuda`),
+model file, and Save / Revert / Restart. Settings are written to
+`%APPDATA%\YoFunscripter\settings.json` on Save.
 
-**Cut scenes** — pick a source folder (required), an output folder (default `scenes`),
-a file pattern and the number of parallel jobs, then **Start**. Every video gets a scene
-list CSV and one clip per scene; a single-scene video is reported as `single` and not
-cut.
+**Cut scenes** — source folder (required), output folder (default `scenes`), file pattern,
+parallel jobs, Start.
 
-**Generate funscripts** — pick the clips folder (default `scenes`) and the scripts folder
-(default `scripts`). A sidecar newer than its clip is reused; a replaced clip is
-regenerated. Progress is measured in frames.
+**Generate funscripts** — clips folder (default `scenes`), scripts folder (default
+`scripts`). A sidecar newer than its clip is reused.
 
-**Merge** — pick the clips folder, the scripts folder, the output folder (default
-`result`) and the name. Clip order: tick rate (default), waves ascending/descending,
-keep the folder order, random. `min_waves` (default 3) drops clips with fewer waves,
-`0` keeps everything. The encode + concat progress is measured in seconds of video.
+**Merge** — clips folder, scripts folder, output folder (default `result`), result name.
+Order: tick rate (default), waves ascending/descending, folder order, random.
+`min_waves` (default 3, `0` = no filter).
 
-The device `cuda` works only in a build that carries the CUDA wheels of torch
-(`build.ps1 -Cuda`). The default installer ships the CPU wheels, so `cuda` falls back to
-the CPU at the start of stage 2 and says so in the log: the run finishes, the clips are
-generated on the CPU.
-
-## Updates
-
-**Check for updates** reads `releases/latest` of `flynet/yoFunscripter`. The repository is
-private, so the app needs a read-only token: set `YOFUNSCRIPTER_GITHUB_TOKEN` (a
-fine-grained PAT with read access to the repository) in the environment of the machine that
-should receive updates. The release, the `.sha256` asset and the installer are then read
-through the API address of the asset, the digest is checked and the installer is started
-silently. Without a token the button reports that there is no release, and the installer is
-taken from the release page by hand.
-
-`YOFUNSCRIPTER_UPDATE_API` aims the check at another address, so the whole chain can be
-tried against a local fixture:
-
-```powershell
-.venv\Scripts\python.exe tools\update_fixture.py            # release.json + installer + .sha256
-.venv\Scripts\python.exe -m http.server 8765 --directory %TEMP%\yofunscripter-fixture
-set YOFUNSCRIPTER_UPDATE_API=http://127.0.0.1:8765/release.json
-```
+`cuda` works in the CUDA build (`build.ps1 -Cuda`); in the CPU build stage 2 runs on the
+CPU.
 
 ## Build from source
 
 ```powershell
-uv sync                          # Python 3.12 venv with the CPU torch wheels
-powershell -ExecutionPolicy Bypass -File build.ps1
-# GPU machine: the cu126 wheels instead of the CPU ones
-powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda
+uv sync
+powershell -ExecutionPolicy Bypass -File build.ps1        # CPU wheels
+powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda  # GPU build
 ```
 
-`build.ps1` writes the version from `git describe --tags`, bundles `bin\ffmpeg.exe`,
-`bin\ffprobe.exe` (from `tools\ffmpeg`, else from the machine, else downloaded by
-`tools\fetch_ffmpeg.ps1`), runs PyInstaller (onedir) and, when Inno Setup 6 is installed,
-builds `dist\install\YoFunscripter-Setup-<version>.exe` with its `.sha256` file.
+`build.ps1` writes the version from `git describe --tags`, bundles `bin\ffmpeg.exe` and
+`bin\ffprobe.exe`, runs PyInstaller (onedir) and builds
+`dist\install\YoFunscripter-Setup-<version>.exe` with its `.sha256` file when Inno Setup 6
+is installed.
 
-Development run without packaging:
+Run without packaging: `run.bat`
 
-```powershell
-run.bat
-```
-
-Check the frozen build for the imports the stages load at runtime (`torch`,
-`ultralytics`, `cv2`, `scenedetect`, the bundled model). It builds the same packages as
-`yofunscripter.spec` without Qt, and prints `OK`:
+Selftest of the frozen build (imports the stages load at runtime, prints `OK`):
 
 ```powershell
 uv run pyinstaller --clean --noconfirm tools\selftest.spec
 dist\selftest\selftest.exe
 ```
 
-Window screenshots are rendered by the app's own window code (offscreen, no run) for local
-viewing; they are not tracked in git:
-
 ```powershell
 .venv\Scripts\python.exe tools\make_screenshots.py
-.venv\Scripts\python.exe tools\make_icon.py       # assets\icon.ico
+.venv\Scripts\python.exe tools\make_icon.py
 ```
 
 ## Tests
@@ -130,12 +80,9 @@ viewing; they are not tracked in git:
 uv run pytest
 ```
 
-The tests cover the Qt-free parts: the updater (release parsing, versions, resume of the
-installer download), settings (atomic save, backup), the i18n catalogs, the progress
-meter and the merge selection rules. The pipelines need real video and a model, so they
-are tested by running the app.
+The tests cover the Qt-free parts: updater, settings, i18n catalogs, progress meter, merge
+selection. The pipelines need real video and a model, so they are tested by running the app.
 
 ## License
 
-MIT, see `NOTICE`. FFmpeg is the GPL build of the FFmpeg project, and the bundled
-Ultralytics model and library are AGPL-3.0: see `NOTICE` for the links.
+MIT, see `NOTICE`. FFmpeg is the GPL build of the FFmpeg project, Ultralytics is AGPL-3.0.
