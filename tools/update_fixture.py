@@ -1,9 +1,10 @@
 """Build a fake release so the updater can be tried on this machine.
 
-The app reads `releases/latest` of the repository; a private repository answers 404 to the
-app (the app has no token), so the whole chain — read the release, download the installer,
-check SHA-256, start the installer — is aimed at a local server with
-`YOFUNSCRIPTER_UPDATE_API`:
+The app reads `releases/latest` of the repository, so the whole chain — read the release,
+download the installer, check SHA-256, start the installer — is aimed at a local server
+with `YOFUNSCRIPTER_UPDATE_API`. The same fixture is the way to test the chain on a
+machine that has no access to the releases (a private repository answers 404 to the app
+without a token):
 
     python tools/update_fixture.py                        # fixture in the temp dir
     python -m http.server 8765 --directory <fixture dir>  # serve it

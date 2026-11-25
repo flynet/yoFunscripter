@@ -74,23 +74,24 @@ State of the project, in the order of what is left.
   (`https://github.com/flynet/yoFunscripter/releases`) with the assets
   `YoFunscripter-Setup-<version>.exe` and `YoFunscripter-Setup-<version>.exe.sha256`; the
   digest `build.ps1` writes equals GitHub's own digest of the asset, so `verify()` has the
-  right expectation. The repository is **private**, so:
-  - `releases/latest` answers 404 without a token (measured) and 200 with the token;
-  - `browser_download_url` answers 404 for a private release (it needs a browser session),
-    and the API address of the asset `https://api.github.com/.../releases/assets/<id>` with
-    `Accept: application/octet-stream` gives the file (measured);
-  - the app sends the token from `YOFUNSCRIPTER_GITHUB_TOKEN`, and reads the release, the
-    digest and the installer with it. With the token the whole chain is measured against
-    the real private release: `fetch_release` → `1.0.1`, `is_newer("1.0.0", "1.0.1")` → True,
-    the installer downloaded byte for byte (239407095 bytes, 229 chunk reports), the SHA-256
-    of the release asset matched the file, the command is
-    `setup.exe /SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART` with
-    `DETACHED_PROCESS` (the installer was not launched, `Popen` was stubbed).
-  - Without a token the button reports that there is nothing to show, which is the truth
-    for a private repository. The owner keeps the repository private; the token of a
-    read-only fine-grained PAT is given to the machines that should receive updates, and
-    `YOFUNSCRIPTER_UPDATE_API` aims the check at a local fixture (`tools/update_fixture.py`)
-    to test the chain without any token.
+  right expectation. The repository is **public** (the owner flipped it with the API:
+  `visibility=public`, measured `private=True` before and `private=False` after), so the app
+  needs no token:
+  - `releases/latest` answers 200 without a token (measured);
+  - `browser_download_url` gives the file without a token. The whole chain against the real
+    public release 1.0.1 is measured unauthenticated: `fetch_release` → `1.0.1`,
+    `is_newer("1.0.0", "1.0.1")` → True, the installer downloaded byte for byte (239407095
+    bytes, 229 chunk reports), the SHA-256 of the release asset matched the file, the command
+    is `setup.exe /SILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART` with
+    `DETACHED_PROCESS` (the installer was not launched, `Popen` was stubbed);
+  - the code that reads a private repository is kept: the token of
+    `YOFUNSCRIPTER_GITHUB_TOKEN` (a read-only fine-grained PAT) is sent when the environment
+    has one, and the release, the digest and the installer are read through the API address
+    of each asset with it (measured against the private release 1.0.1: `browser_download_url`
+    answered 404, the API asset address with `Accept: application/octet-stream` gave the
+    file);
+  - `YOFUNSCRIPTER_UPDATE_API` aims the check at a local fixture
+    (`tools/update_fixture.py`) to test the chain end to end without any network.
   The CI workflows (`.github/workflows/ci.yml`, `release.yml`) have
   not run on GitHub.
 - **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv pip

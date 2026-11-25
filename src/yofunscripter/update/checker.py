@@ -8,10 +8,11 @@ The setup file is named `YoFunscripter-Setup-<version>.exe` — the contract wit
 release workflow. The download is resumed from the byte the file reached, because GitHub
 answers a big installer over a slow link in pieces, and a restart from zero never finishes.
 
-The repository is private, so `releases/latest` answers 404 to a request without a token:
-the app sends the token of `YOFUNSCRIPTER_GITHUB_TOKEN` when the environment has one, and
-reads the release, the digest and the installer with it. Without a token the check reports
-that there is nothing to show, which is the truth for a private repository.
+The repository is public, so the check needs no token: `releases/latest` and
+`browser_download_url` answer the app as it is. The token of `YOFUNSCRIPTER_GITHUB_TOKEN`
+is kept for a private repository: the release, the digest and the installer are then read
+through the API address of each asset with the token. Without a token on a private
+repository the check reports that there is nothing to show, which is the truth.
 """
 
 from __future__ import annotations
@@ -31,14 +32,13 @@ from yofunscripter.i18n import tr
 
 #: `https://api.github.com/repos/<owner>/<repo>/releases/latest`
 API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
-#: The variable that aims the check at another address. A private repository answers 404
-#: to the app (it has no token), so the updater is pointed at a local test server
-#: (`tools/update_fixture.py`) to try the whole chain: read the release, download the
-#: installer, check the digest, start the installer.
+#: The variable that aims the check at another address. The updater is pointed at a local
+#: test server (`tools/update_fixture.py`) to try the whole chain: read the release,
+#: download the installer, check the digest, start the installer.
 API_URL_ENV = "YOFUNSCRIPTER_UPDATE_API"
-#: A private repository answers 404 to the app, so the releases are read with a token.
-#: The token is taken from the environment and never stored inside the program: a
-#: fine-grained token that can read the repository is enough (`YOFUNSCRIPTER_GITHUB_TOKEN`).
+#: A token for a private repository: the release, the digest and the installer are read
+#: with it. The token is taken from the environment and never stored inside the program
+#: (`YOFUNSCRIPTER_GITHUB_TOKEN`). A public repository needs no token.
 TOKEN_ENV = "YOFUNSCRIPTER_GITHUB_TOKEN"
 SHA_SUFFIX = ".sha256"
 INSTALLER_ARGS = ["/SILENT", "/SUPPRESSMSGBOXES", "/CLOSEAPPLICATIONS", "/NORESTART"]
