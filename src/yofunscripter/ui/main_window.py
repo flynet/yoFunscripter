@@ -15,18 +15,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray
-from PySide6.QtWidgets import (QLabel, QMainWindow, QMessageBox, QPushButton, QTabWidget,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QLabel, QMainWindow, QMessageBox, QPushButton,
+                               QTabWidget, QVBoxLayout, QWidget)
 
 from yofunscripter.config.constants import VERSION
 from yofunscripter.config.paths import app_data_root, install_layout
 from yofunscripter.config.settings import Settings, save_settings
-from yofunscripter.i18n import tr
+from yofunscripter.i18n import current_language, tr
 from yofunscripter.pipeline import funscript_stage, merge_stage, scenes_stage
 from yofunscripter.pipeline.paths import Layout
 from yofunscripter.ui.progress_panel import ProgressPanel
 from yofunscripter.ui.settings_panel import SettingsPanel
 from yofunscripter.ui.stage_cards import merge_card, scenes_card, scripts_card
+from yofunscripter.ui.theme import apply_theme
 from yofunscripter.ui.widgets import ConsolePanel, fmt_time
 from yofunscripter.update import checker
 from yofunscripter.update.ui import UpdateDialog, UpdateThread
@@ -40,6 +41,8 @@ class MainWindow(QMainWindow):
         self.layout: Layout = install_layout(settings)
         self.worker: StageWorker | None = None
         self.update_thread: UpdateThread | None = None
+        #: the theme the app is painted in now, so «Save» repaints only when it changed
+        self._theme = settings.theme
 
         self.setWindowTitle(f"{tr('app_title')} {VERSION}")
         central = QWidget()
@@ -83,13 +86,10 @@ class MainWindow(QMainWindow):
         self.merge_card.start.clicked.connect(self._start_merge)
         self.panel.browse_model.clicked.connect(self.panel.pick_model)
         self.panel.reset_model.clicked.connect(self._reset_model)
-        self.panel.model.textChanged.connect(self._apply_settings)
-        self.panel.force.toggled.connect(self._apply_settings)
-        self.panel.no_check.toggled.connect(self._apply_settings)
-        for widget in (self.panel.language, self.panel.theme, self.panel.device):
-            widget.currentIndexChanged.connect(self._apply_settings)
-        for widget in (self.panel.jobs, self.panel.threads):
-            widget.valueChanged.connect(self._apply_settings)
+        # the settings are applied by the Save button of the panel, not by a change of
+        # one widget: a run that is going must not pick up half of a new form
+        self.panel.save_requested.connect(self._apply_settings)
+        self.panel.restart_requested.connect(self._restart_app)
 
         for row in self.scenes_card.rows + self.scripts_card.rows + self.merge_card.rows:
             row.edit.textChanged.connect(self._sync_dirs)
@@ -208,15 +208,32 @@ class MainWindow(QMainWindow):
         self._save()
 
     def _apply_settings(self) -> None:
+        """«Save»: write the form into `settings.json` and apply what can be applied now."""
         for key, value in self.panel.values().items():
             setattr(self.settings, key, value)
         self._save()
-        self.log(tr("restart_needed"))
+        app = QApplication.instance()
+        if app is not None and self.settings.theme != self._theme:
+            # the color scheme is applied at once: the window repaints in the new palette
+            apply_theme(app, self.settings.theme)
+            self._theme = self.settings.theme
+        if self.settings.language != current_language():
+            self.log(tr("restart_needed"))
+        else:
+            self.log(tr("settings_saved"))
+
+    def _restart_app(self) -> None:
+        """«Restart»: save the form and start a new copy of the program."""
+        from yofunscripter.ui.app import restart_application
+
+        self._save()
+        self.close()
+        app = QApplication.instance()
+        if app is not None:
+            restart_application(app)
 
     def _reset_model(self) -> None:
         self.panel.model.setText("")
-        self.settings.model_path = ""
-        self._save()
 
     def _save(self) -> None:
         save_settings(self.settings, app_data_root() / "settings.json")

@@ -81,6 +81,9 @@ TEXTS = {
     "locked_output": "{path} is locked by another process (player): close it and run again.",
     "one_stage": "A stage is already running: wait for it to finish.",
     "pick_folder": "Choose the folder",
+    "settings_save": "Save",
+    "settings_revert": "Revert",
+    "settings_restart": "Restart",
     "settings_saved": "Settings are saved.",
     "restart_needed": "Settings are saved: a restart applies the language and the theme.",
 

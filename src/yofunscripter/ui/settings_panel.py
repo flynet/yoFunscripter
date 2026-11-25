@@ -1,20 +1,22 @@
 """Settings tab: language, color scheme, stage parameters, the YOLO model.
 
-The panel emits the same change signal the window listens to: every change is saved to
-`settings.json` at once, so a crash in the middle of a run keeps the choices the user
-made. The language and the theme are applied at startup, so the window asks for a
-restart when one of them is changed.
+The panel writes nothing by itself: the values are applied when the user presses
+«Save» (`save_requested`), the same way as in the settings dialog of PyDownload — a
+change of a combo box must not restart a run that is going with the old values. «Revert»
+returns the widgets to the values that are in `settings.json`, «Restart» starts a new
+copy of the program, because the language is applied at startup.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QLabel,
-                               QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QGridLayout, QHBoxLayout,
+                               QLabel, QLineEdit, QPushButton, QSpinBox, QVBoxLayout, QWidget)
 
 from yofunscripter.config.settings import DEVICES, Settings, THEMES
-from yofunscripter.i18n import LANGUAGE_NAMES, SUPPORTED_LANGUAGES, tr
+from yofunscripter.i18n import LANGUAGE_NAMES, SUPPORTED_LANGUAGES, current_language, tr
 
 #: Names of the device in the language of the window, `auto` first.
 DEVICE_KEYS = {"auto": "device_auto", "cpu": "device_cpu", "cuda": "device_cuda"}
@@ -22,11 +24,17 @@ THEME_KEYS = {"neon": "theme_neon", "cartoons": "theme_cartoons", "pink": "theme
 
 
 class SettingsPanel(QWidget):
-    """One grid of the settings: the widgets the window reads and saves."""
+    """One grid of the settings + the row of buttons: Save, Revert, Restart."""
+
+    #: the window writes these values and applies the theme
+    save_requested = Signal()
+    #: the window starts a new copy of the program (the language needs a start)
+    restart_requested = Signal()
 
     def __init__(self, settings: Settings, default_model: Path,
                  parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.settings = settings
         layout = QVBoxLayout(self)
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
@@ -95,7 +103,45 @@ class SettingsPanel(QWidget):
         row += 1
 
         layout.addLayout(grid)
+
+        # Save is the button that finishes the page, so it stands at the right of the
+        # row, in the corner where a person looks for it; Revert and Restart are the
+        # secondary commands on the left.
+        buttons = QHBoxLayout()
+        self.revert_button = QPushButton(tr("settings_revert"))
+        self.revert_button.setObjectName("browse")
+        self.revert_button.clicked.connect(self._revert)
+        self.restart_button = QPushButton(tr("settings_restart"))
+        self.restart_button.setObjectName("browse")
+        self.restart_button.clicked.connect(self.restart_requested.emit)
+        self.save_button = QPushButton(tr("settings_save"))
+        self.save_button.setDefault(True)
+        self.save_button.clicked.connect(self.save_requested.emit)
+        buttons.addWidget(self.revert_button)
+        buttons.addWidget(self.restart_button)
+        buttons.addStretch(1)
+        buttons.addWidget(self.save_button)
+        layout.addLayout(buttons)
         layout.addStretch(1)
+
+        # the restart is useful only when the chosen language is not the running one
+        self.language.currentIndexChanged.connect(self._refresh_restart)
+        self._refresh_restart()
+
+    def _refresh_restart(self) -> None:
+        """«Restart» is enabled when the chosen language is not the running language."""
+        self.restart_button.setEnabled(self.language.currentData() != current_language())
+
+    def _revert(self) -> None:
+        """Return the widgets to the values that are in the settings."""
+        self.language.setCurrentIndex(max(0, SUPPORTED_LANGUAGES.index(self.settings.language)))
+        self.theme.setCurrentIndex(max(0, THEMES.index(self.settings.theme)))
+        self.jobs.setValue(self.settings.jobs)
+        self.threads.setValue(self.settings.threads)
+        self.device.setCurrentIndex(max(0, DEVICES.index(self.settings.device)))
+        self.model.setText(self.settings.model_path)
+        self.force.setChecked(self.settings.force)
+        self.no_check.setChecked(self.settings.no_check)
 
     def pick_model(self) -> None:
         """Weights of YOLO: the `.pt` file the user chooses, `""` is the bundled model."""

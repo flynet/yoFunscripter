@@ -25,6 +25,16 @@ State of the project, in the order of what is left.
   and the `60% · 7200 s of 12000 s · ETA · elapsed` line, the console, the merge options,
   the settings page. Cyrillic and Latin both render; the screenshots in `assets/screenshots`
   are the real window (`tools/make_screenshots.py`).
+- **The settings page applies the form by the «Save» button** (the pattern of PyDownload):
+  measured offscreen with `C:\Users\Home\AppData\Local\Temp\opencode\probe_save.py` (Qt only,
+  no CPU work): changing the widgets writes nothing; `Save` writes
+  `settings.json` at once, applies the colour scheme immediately (window palette read
+  `#fff6e0` for cartoons), prints «Settings are saved: a restart applies the language and
+  the theme» when the language differs; `Revert` returns the widgets to the saved values;
+  `Reset model` + `Save` writes the empty model path; `Restart` is enabled only when the
+  chosen language is not the running one, and `restart_command()` is
+  `python -m yofunscripter` in the source tree, the `.exe` in the frozen build.
+
 - **The packaged build**: `build.ps1` ran on this machine. PyInstaller onedir produced
   `dist\yoFunscripter\` (908 MB unpacked) with `_internal` (torch 2.15.0+cpu 373 MB with
   `torch_cpu.dll`, torchvision, ultralytics 8.4.218 with `engine/nn/trackers/cfg/data`,
@@ -47,7 +57,9 @@ State of the project, in the order of what is left.
 
 ## Left
 
-- **One run inside the packaged app.** The stage code inside the frozen build has not
+- **One run inside the packaged app.** `dist\` and `dist\install\YoFunscripter-Setup-1.0.0.exe`
+  were built before the «Save» row of the settings, so they must be rebuilt by `build.ps1`
+  before the packaged checks. The stage code inside the frozen build has not
   been driven: the selftest proves the imports and the model, the ffmpeg calls and the
   worker threads are the same code the source runs, and the source is measured
   end to end. The install of `YoFunscripter-Setup-1.0.0.exe` on a clean machine has not

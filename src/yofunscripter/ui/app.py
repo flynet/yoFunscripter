@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import sys
 
+from PySide6.QtCore import QProcess
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
@@ -19,6 +20,29 @@ from yofunscripter.config.settings import load_settings, save_settings
 from yofunscripter.i18n import set_language, tr
 from yofunscripter.ui.main_window import MainWindow
 from yofunscripter.ui.theme import apply_theme
+
+
+def restart_command() -> tuple[str, list[str]]:
+    """The command that starts this program again.
+
+    In the built program the command is the `.exe` itself. In the source tree it is the
+    interpreter with the package, the same way as `python -m yofunscripter`.
+    """
+    if getattr(sys, "frozen", False):
+        return sys.executable, sys.argv[1:]
+    return sys.executable, ["-m", "yofunscripter"] + sys.argv[1:]
+
+
+def restart_application(app: QApplication) -> None:
+    """«Restart» in the settings: start a detached copy and quit this one.
+
+    The settings are written before the call, so the new copy reads the language and the
+    theme the user has just chosen. The new process inherits the working directory, so
+    it finds the same folders as the running one.
+    """
+    exe, args = restart_command()
+    QProcess.startDetached(exe, args)
+    app.quit()
 
 
 def main(argv: list[str] | None = None) -> int:

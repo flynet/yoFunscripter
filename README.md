@@ -15,7 +15,10 @@ progress (percent, ETA, elapsed) and the log.
 ![main window](assets/screenshots/main-en.png)
 
 The settings page (Russian, the «Cartoons» scheme): language, color scheme, threads of
-each stage, device for YOLO, the model file, and the two run options.
+each stage, device for YOLO, the model file, and the two run options. «Сохранить» / «Save»
+writes the settings at once, «Сбросить» / «Revert» returns the form to the saved values,
+«Перезапустить» / «Restart» starts the program again so the new language is applied
+(the colour scheme is applied without a restart).
 
 ![settings](assets/screenshots/settings-ru.png)
 
@@ -44,8 +47,9 @@ its installer.
 ## Use
 
 **Settings** — language (English/Russian), colour scheme, threads, device
-(`auto` / `cpu` / `cuda`), model file. The window state, folders and thresholds are saved
-in `%APPDATA%\YoFunscripter\settings.json`.
+(`auto` / `cpu` / `cuda`), model file; the row of buttons Save / Revert / Restart. The form is
+written to `%APPDATA%\YoFunscripter\settings.json` when «Save» is pressed (and on close), so
+a run that is going keeps the values it started with.
 
 **Cut scenes** — pick a source folder (required), an output folder (default `scenes`),
 a file pattern and the number of parallel jobs, then **Start**. Every video gets a scene
