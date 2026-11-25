@@ -62,6 +62,10 @@ jobs:
       - name: Publish the installer and its SHA-256
         uses: softprops/action-gh-release@v2
         with:
+          # `append_by_default: false` (the default of the action) deletes the assets that
+          # are already on the release, and that is the CUDA installer of the GPU machine:
+          # the release must keep it, so the CPU build is appended, not written over
+          append_by_default: true
           files: |
             dist/install/YoFunscripter-Setup-*.exe
             dist/install/YoFunscripter-Setup-*.exe.sha256

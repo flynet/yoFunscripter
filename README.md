@@ -121,11 +121,13 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Cuda            # the CUDA i
 powershell -ExecutionPolicy Bypass -File tools\publish_upload.ps1    # attach it to the release
 ```
 
-`publish_release.ps1` creates the release from `build\release-notes-<version>.md` and
-writes the release id to `build\release_id.txt`; the CI workflow builds the CPU installer.
-`publish_upload.ps1` attaches the installer of the local CUDA build and removes the CPU
-asset of the CI, so the release keeps one setup file. Both read the token from the git
-credential manager.
+`publish_release.ps1` creates the release from `build\release-notes-<version>.md` and writes
+the release id to `build\release_id.txt`; the CI workflow then builds the CPU installer and
+appends it (`append_by_default: true`, so the CUDA installer already on the release is never
+deleted by the action). `publish_upload.ps1` attaches the installer of the local CUDA build
+and removes the CPU asset of the CI, so the release keeps one setup file, and it must run
+after the CI build is finished: an upload that lands first is deleted by the CI run. Both
+read the token from the git credential manager.
 
 ## Tests
 

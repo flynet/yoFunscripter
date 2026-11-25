@@ -186,7 +186,13 @@ State of the project, in the order of what is left.
   `curl.exe --data-binary @body.json` (201); `publish_release.ps1` itself was broken by
   comment lines without `#` before `param` (`MissingArgument`) and is fixed. The CI release
   build attaches its CPU installer with the same name, so the CPU asset is removed after the
-  local upload and the release keeps one setup file.
+  local upload and the release keeps one setup file. The action
+  `softprops/action-gh-release@v2` is measured to delete the assets that are already on the
+  release (`append_by_default` is `false` by default): the CI run of `v1.0.5` erased the
+  CUDA installer and its `.sha256` that had been uploaded first, so the action is set to
+  `append_by_default: true` and `publish_upload.ps1` must run after the CI build is
+  finished. The watcher that waits for the CI run and deletes its CPU assets is
+  `C:\Users\Home\AppData\Local\Temp\opencode\watch_ci.ps1`.
 - **The CUDA build.** `build.ps1 -Cuda` was run once and produced a CPU build: `uv pip
   install` without `--reinstall` printed `Audited 2 packages` and changed nothing (the CPU
   wheels already satisfy the requirement), and `uv run pyinstaller` syncs the project, so it
