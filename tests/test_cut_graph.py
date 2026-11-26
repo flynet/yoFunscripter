@@ -115,10 +115,12 @@ def test_cut_cmd_without_audio_is_video_only(tmp_path: Path):
     assert "[ao0]" not in cmd
 
 
-def test_libx264_runs_one_thread_per_encoder():
+def test_libx264_encoder_threads_come_from_config():
+    """x264 threads are the config value: `-threads 0` (auto) is 7x faster than `-threads 1`
+    (замер Project2.mp4, 1080p crf 18 veryfast: 15.3 against 107.5 frames/s)."""
     c = cfg()
     args = sd.video_args(c, "libx264")
-    assert args[args.index("-threads") + 1] == "1"
+    assert args[args.index("-threads") + 1] == str(c["encoder_threads"])
     assert args[args.index("-crf") + 1] == str(c["crf"])
     assert args[args.index("-video_track_timescale") + 1] == str(c["timescale"])
 
@@ -218,7 +220,7 @@ def test_nvenc_chunk_stays_under_the_session_limit(tmp_path: Path, repo_layout):
     """GeForce drops NVENC sessions past `nvenc_max_outputs`, so the chunk is smaller."""
     c = {**cfg(), "vcodec": "h264_nvenc"}
     rows = big_rows(1623)
-    pts = [i * 2.0 for i in range(4800)]
+    pts = key_list(4800)
     chunks = sd.plan_chunks(c, Path("Project2.mp4"), rows, tmp_path / "Project2", 30.0,
                             "h264_nvenc", True, -0.067, pts)
     assert all(len(ch.rows) <= int(c["nvenc_max_outputs"]) for ch in chunks)
