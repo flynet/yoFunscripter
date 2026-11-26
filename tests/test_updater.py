@@ -180,6 +180,25 @@ def test_download_resumes_from_existing_bytes(tmp_path, monkeypatch):
     assert target.read_bytes() == b"olddef"
 
 
+def test_download_drops_a_part_past_the_release_size(tmp_path, monkeypatch):
+    """Bytes that reach past the whole installer of the release cannot be resumed: the
+    file is thrown away and read from the first byte, not appended to again."""
+    monkeypatch.delenv(checker.TOKEN_ENV, raising=False)
+    asset = checker.Asset("setup.exe", "https://example.test/setup.exe", 6)
+    target = tmp_path / "setup.exe"
+    target.write_bytes(b"old" * 4)
+    seen = {}
+
+    def fake_stream(method, url, **kwargs):
+        seen.update(kwargs)
+        return _Response(status_code=200, headers={"content-length": "6"}, chunks=(b"abcdef",))
+
+    monkeypatch.setattr(checker.httpx, "stream", fake_stream)
+    checker.download_installer(asset, target)
+    assert "Range" not in seen["headers"]
+    assert target.read_bytes() == b"abcdef"
+
+
 def test_download_empty_answer_is_an_error(tmp_path, monkeypatch):
     def fake_stream(method, url, **kwargs):
         return _Response(status_code=500)

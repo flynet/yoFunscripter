@@ -6,10 +6,11 @@
 #
 # The updater reads `releases/latest` and takes the asset `YoFunscripter-Setup-<version>.exe`,
 # so exactly one setup file must be in the release: the CI workflow attaches its CPU build
-# with the same name, and that asset is removed here after the upload. The token is taken
-# from the git credential manager, the same one `git push` uses. A CUDA installer is about
-# 1.7 GB, so the upload is done by `curl.exe`, which streams the file: a PowerShell string
-# of that size does not fit in memory.
+# with the same name, and that asset is removed here before the upload — GitHub answers
+# `422 already_exists` to a second asset with the name a release already has. The token is
+# taken from the git credential manager, the same one `git push` uses. A CUDA installer is
+# about 1.7 GB, so the upload is done by `curl.exe`, which streams the file: a PowerShell
+# string of that size does not fit in memory.
 
 param(
     [long]$ReleaseId
@@ -20,6 +21,20 @@ Set-Location (Split-Path -Parent $PSScriptRoot)
 $creds = "protocol=https`nhost=github.com`n" | git credential fill
 $token = ($creds | Select-String "^password=").Line.Substring(9)
 if (-not $ReleaseId) { $ReleaseId = [long](Get-Content "build\release_id.txt" -Raw).Trim() }
+
+# the CI build of the same version is a CPU installer of the same name: it must be gone
+# first, so the upload of the CUDA build has the name free
+$release = Invoke-RestMethod `
+    -Uri "https://api.github.com/repos/flynet/yoFunscripter/releases/$ReleaseId" `
+    -Headers @{ Authorization = "token $token" }
+foreach ($asset in $release.assets) {
+    if ($asset.name -like "YoFunscripter-Setup-*") {
+        Invoke-RestMethod -Method Delete -Uri $asset.url `
+            -Headers @{ Authorization = "token $token" } | Out-Null
+        Write-Host "removed the CI asset $($asset.name) " +
+                   "($([math]::Round($asset.size / 1MB, 1)) MB)"
+    }
+}
 
 $uploaded = @()
 foreach ($file in Get-ChildItem "dist\install\YoFunscripter-Setup-*") {
@@ -41,19 +56,5 @@ foreach ($file in Get-ChildItem "dist\install\YoFunscripter-Setup-*") {
     Write-Host "uploaded $($file.Name) ($([math]::Round($file.Length / 1MB, 1)) MB) as asset $($asset.id)"
 }
 
-# the CI build of the same version is a CPU installer of the same name: two setup files
-# in one release leave the updater guessing
-$release = Invoke-RestMethod `
-    -Uri "https://api.github.com/repos/flynet/yoFunscripter/releases/$ReleaseId" `
-    -Headers @{ Authorization = "token $token" }
-foreach ($asset in $release.assets) {
-    if ($uploaded.id -contains $asset.id) { continue }
-    if ($asset.name -like "YoFunscripter-Setup-*") {
-        Invoke-RestMethod -Method Delete -Uri $asset.url `
-            -Headers @{ Authorization = "token $token" } | Out-Null
-        Write-Host "removed the CI asset $($asset.name) " +
-                   "($([math]::Round($asset.size / 1MB, 1)) MB)"
-    }
-}
 Write-Host "release assets:"
 foreach ($asset in $uploaded) { Write-Host "  $($asset.name)" }

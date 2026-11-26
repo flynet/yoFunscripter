@@ -266,6 +266,12 @@ def download_installer(asset: Asset, target: Path, on_chunk=None, token=None) ->
     next megabyte, not at the end of the file.
     """
     target.parent.mkdir(parents=True, exist_ok=True)
+    if asset.size and target.exists() and target.stat().st_size > asset.size:
+        # The bytes on disk reach past the whole installer of the release: a server that
+        # answers the `Range` of HTTP with the whole file grows a part past its end, and
+        # nothing can be resumed from such a file, so it is thrown away and read from the
+        # first byte again.
+        target.unlink()
     url = download_url(asset)
     last: Exception | None = None
     for _attempt in range(DOWNLOAD_ATTEMPTS):

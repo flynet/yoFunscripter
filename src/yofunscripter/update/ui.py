@@ -84,6 +84,9 @@ class DownloadThread(QThread):
             if self.release.sha256_asset is not None:
                 expected = checker.fetch_expected_sha(self.release.sha256_asset)
                 if not checker.verify(path, expected):
+                    # The bytes on disk are not the installer of the release, and they must
+                    # go: the next check resumes from them and fails the digest the same way.
+                    path.unlink(missing_ok=True)
                     self.failed.emit(tr("sha_mismatch"))
                     return
             self.downloaded.emit(str(path))

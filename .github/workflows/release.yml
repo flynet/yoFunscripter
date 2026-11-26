@@ -59,7 +59,24 @@ jobs:
           }
           Write-Host "installer: $setup"
 
+      - name: Is an installer already in the release
+        id: present
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # The GPU machine puts its CUDA build on the release as soon as the release is
+          # created, and the updater takes exactly one `YoFunscripter-Setup-<version>.exe`,
+          # so the CPU build of the runner is not added on top of it.
+          $rel = Invoke-RestMethod `
+              -Uri "https://api.github.com/repos/${{ github.repository }}/releases/tags/$env:TAG" `
+              -Headers @{ Authorization = "token $env:GH_TOKEN" }
+          $setup = @($rel.assets | Where-Object { $_.name -like "YoFunscripter-Setup-*.exe" })
+          "present=$($setup.Count)" | Out-File -Append -Encoding ascii $env:GITHUB_OUTPUT
+
       - name: Publish the installer and its SHA-256
+        if: steps.present.outputs.present == '0'
         uses: softprops/action-gh-release@v2
         with:
           # `append_by_default: false` (the default of the action) deletes the assets that
