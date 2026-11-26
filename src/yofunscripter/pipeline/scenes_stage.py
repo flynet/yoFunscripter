@@ -2,12 +2,13 @@
 
 Thin GUI-facing wrapper over the vendored `scenedetect_run` (same algorithm, same
 parameters from `configs/scenes.yaml`): scene detection by PySceneDetect as a library,
-cutting by one ffmpeg process per scene (`-ss` before `-i` with the source's first-pts
-offset, `-frames:v` = scene length + head + tail), post-trim of the AAC tail, and the
-clip checks against the ScriptPlayer reference.
+cutting by one ffmpeg process per chunk of `max_outputs` scenes (`-ss` before `-i` on a
+keyframe of the source, frame-accurate `trim`, `-t Length/fps` and `+faststart` in the same
+process), and the clip checks against the ScriptPlayer reference.
 
 The wrapper adds only reporting: a plan (dry) and a progress meter in seconds of source
 video, split 15% detection / 85% ffmpeg cut, so the progress bar tracks real duration.
+The last line says plainly when the run finished with no clips in the folder.
 """
 from __future__ import annotations
 
@@ -142,6 +143,10 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
     a = argparse.Namespace(force=opts.force, cut_only=False, detect_only=False,
                            no_check=opts.no_check)
     jobs = max(1, int(opts.jobs))
+    # бюджет процессов ffmpeg делится между видео: один длинный фильм режется параллельными
+    # чанками (все `jobs` на него), пачка кликов = по одному процессу на видео. Суммарных
+    # процессов не больше `jobs`.
+    chunk_jobs = max(1, jobs // min(jobs, len(videos)))
     rows: list[dict] = []
     t_start = time.time()
 
@@ -165,7 +170,7 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
         for v in videos:
             on_phase, on_cut = hooks(v)
             futs[pool.submit(sd.process, v, cfg, opts.out_dir, scenes_dir, a,
-                             on_phase, on_cut, token)] = v
+                             on_phase, on_cut, token, chunk_jobs)] = v
         done = 0
         for fut in as_completed(futs):
             v = futs[fut]
@@ -216,4 +221,8 @@ def run(cfg: dict, opts: ScenesOptions, *, on_progress=None, on_log=None,
         on_log(tr("stage1_summary", videos=len(rows), cut=cut, single=single,
                   skipped=skipped, errors=errors, files=files,
                   elapsed=f"{elapsed:.0f}", out=opts.out_dir))
+        if files == 0 and errors:
+            # the meter is at 100% and the folder is empty: the run must say so plainly
+            on_log(tr("stage1_no_clips", videos=len(rows), errors=errors,
+                      out=opts.out_dir))
     return summary

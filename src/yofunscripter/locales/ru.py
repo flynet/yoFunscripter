@@ -170,12 +170,18 @@ TEXTS = {
     "nvenc_limit": "Видеокарта не может взять {scenes} сцен сразу (предел {limit}): этот "
                    "клип режет процессор.",
     "nvenc_fail": "Видеокарта отказала ({text}): этот клип режет процессор.",
+    "cut_chunk_fail": "чанк {tag}: {text}",
+    "cmd_too_long": "Команда из {chars} символов не влазит в Windows (предел {limit}): "
+                     "программа видео не запускается. Сцены режутся чанками, так что это "
+                     "ошибка плана чанков.",
     "stage1_video": "[{done}/{total}] {name}: {status}, сцен {scenes}, файлов {files}, "
                     "поиск {detect} с, резка {cut} с{reason}",
     "stage1_collisions": "{count} видео в {dir} дают одно имя: переименуйте их, чтобы у "
                          "каждого клипа было своё имя: {list}",
     "stage1_summary": "Видео {videos}: нарезано {cut}, одна сцена {single}, пропущено "
                       "{skipped}, ошибок {errors}, файлов {files}, {elapsed} с → {out}",
+    "stage1_no_clips": "В {out} ничего не записано: ошибка в {errors} из {videos} видео, "
+                       "клипов в папке нет.",
     "stage2_start": "Клипов {clips}, считаем {todo}, модель {name} ({version})",
     "stage2_skip": "[{i}/{total}] {name}: пропущен — файл .funscript свежий",
     "stage2_clip": "[{i}/{total}] {name}: {ticks} тиков, {elapsed} с{reason}",

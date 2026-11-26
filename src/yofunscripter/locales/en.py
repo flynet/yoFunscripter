@@ -170,12 +170,18 @@ TEXTS = {
     "nvenc_limit": "The video card cannot take {scenes} scenes at once (limit {limit}): "
                    "this clip is cut by the processor.",
     "nvenc_fail": "The video card refused ({text}): this clip is cut by the processor.",
+    "cut_chunk_fail": "chunk {tag}: {text}",
+    "cmd_too_long": "The command of {chars} characters does not fit in Windows (limit "
+                     "{limit}): the video program cannot start. The scenes are cut in "
+                     "chunks, so this is a bug of the chunk plan.",
     "stage1_video": "[{done}/{total}] {name}: {status}, {scenes} scenes, {files} files, "
                     "detect {detect} s, cut {cut} s{reason}",
     "stage1_collisions": "{count} videos in {dir} share one name: rename them so every clip "
                          "has its own name: {list}",
     "stage1_summary": "Videos {videos}: cut {cut}, one scene {single}, skipped {skipped}, "
                       "errors {errors}, files {files}, {elapsed} s → {out}",
+    "stage1_no_clips": "Nothing was written to {out}: {errors} of {videos} videos gave an "
+                       "error, the clips are not in the folder.",
     "stage2_start": "Clips {clips}, to compute {todo}, model {name} ({version})",
     "stage2_skip": "[{i}/{total}] {name}: skipped — the .funscript file is current",
     "stage2_clip": "[{i}/{total}] {name}: {ticks} ticks, {elapsed} s{reason}",

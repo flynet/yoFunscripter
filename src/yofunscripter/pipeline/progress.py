@@ -26,24 +26,31 @@ from pathlib import Path
 
 from .cancel import Cancelled, CancelToken, _kill
 from .no_window import popen
+from yofunscripter.i18n import tr
+
+#: `CreateProcess` fails above 32768 characters of the command line: WinError 206 and the
+#: child never starts (замер: рез на 1623 выходов = ~330 000 символов, файлов 0).
+CMD_CHAR_LIMIT = 32768
 
 
 def read_progress(progress_file: Path) -> float | None:
     """out_time (seconds) from ffmpeg `-progress`: the file is appended in blocks, the
-    last `out_time=` line is the current one."""
+    last `out_time=` line is the current one.
+
+    Замер чанка из 16 выходов (Project2, 135 s encoded): `out_time` = 3.4 s, то есть
+    время ПОСЛЕДНЕГО выхода, не сумма. Полосу чанка ведёт вызывающий: база чанка +
+    время последнего выхода, и база + весь чанк по завершении процесса.
+    """
     if not progress_file.is_file():
         return None
     try:
         text = progress_file.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    out_time = None
-    for line in text.splitlines():
-        if line.startswith("out_time="):
-            out_time = line.split("=", 1)[1].strip()
-    if out_time is None:
+    lines = [line for line in text.splitlines() if line.startswith("out_time=")]
+    if not lines:
         return None
-    parts = out_time.split(":")
+    parts = lines[-1].split("=", 1)[1].strip().split(":")
     if len(parts) != 3:
         return None
     try:
@@ -73,6 +80,10 @@ def run_ffmpeg_progress(cmd: list[str], progress_file: Path,
     if len(cmd) >= 2 and cmd[-2] == "-o":
         idx = len(cmd) - 2
     full = cmd[:idx] + ["-progress", str(progress_file)] + cmd[idx:]
+    line = subprocess.list2cmdline(full)
+    if len(line) > CMD_CHAR_LIMIT:
+        # the process cannot start at all: Windows refuses the command, ffmpeg never runs
+        raise SystemExit(tr("cmd_too_long", chars=len(line), limit=CMD_CHAR_LIMIT))
     proc = popen(full, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if token is not None:
         token.register(proc)

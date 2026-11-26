@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from yofunscripter.pipeline.progress import ProgressMeter
+from pathlib import Path
+
+from yofunscripter.pipeline.progress import ProgressMeter, read_progress
 
 
 def test_sum_and_clamp():
@@ -48,3 +50,20 @@ def test_finished_meter_ignores_late_workers():
     meter.finish()
     meter.set("a", 9)
     assert seen[-1] == (4, 10)
+
+
+def test_progress_reads_the_last_out_time(tmp_path: Path):
+    """`out_time` = время ПОСЛЕДНЕГО выхода: чанк из 16 клипов даёт 3.4 s при 135 s encoded.
+
+    Замер Project2.mp4, чанк 0 (16 выходов, 4057 кадров): последних 12 блоков — рост
+    49.8..52.6 s одного выхода, затем `N/A` и 6.7 s следующего; блоков 176 на 2983 кадра,
+    то есть блок = не кадр. Полосу чанка ведёт вызывающий (база + максимум, полный чанк
+    по завершении процесса), здесь проверяется только чтение файла.
+    """
+    f = tmp_path / "cut.txt"
+    f.write_text("frame=100\nout_time=00:01:25.000000\nprogress=continue\n"
+                 "frame=10\nout_time=00:00:03.400000\nprogress=continue\n", encoding="utf-8")
+    assert read_progress(f) == 3.4            # the last block, not the longest output
+    f.write_text("frame=1\nout_time=N/A\nprogress=continue\n", encoding="utf-8")
+    assert read_progress(f) is None           # N/A is not seconds
+    assert read_progress(tmp_path / "missing.txt") is None
